@@ -257,6 +257,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
               onFocus={handleTextFocus}
               multiline
               maxLength={1000}
+              textAlignVertical="center"
             />
 
             {/* Attachment Buttons - only show when no text */}
@@ -321,30 +322,29 @@ const styles = StyleSheet.create({
   },
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
+    gap: 8,
   },
   inputWrapper: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     backgroundColor: '#F5F5F5',
     borderRadius: 20,
-    paddingLeft: 4,
-    paddingRight: 12,
+    paddingHorizontal: 8,
     minHeight: 40,
     maxHeight: 100,
   },
   emojiButton: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 2,
   },
   emojiIcon: {
     fontSize: 22,
@@ -352,21 +352,21 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     color: '#000',
+    minHeight: 32,
   },
   attachmentButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingBottom: 2,
+    gap: 4,
   },
   attachButton: {
     width: 32,
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 4,
   },
   attachIcon: {
     fontSize: 20,
@@ -376,8 +376,6 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
-    marginBottom: -2,
   },
   sendButton: {
     backgroundColor: '#25D366',
