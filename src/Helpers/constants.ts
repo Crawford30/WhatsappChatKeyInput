@@ -10,34 +10,34 @@ export const Colors = {
   primary: '#25D366',
   primaryDark: '#20BC5A',
   primaryLight: '#E0F5E9',
-  
+
   // Message bubbles
   incomingBubble: '#FFFFFF',
   outgoingBubble: '#DCF8C6',
-  
+
   // Backgrounds
   chatBackground: '#E5DDD5',
   inputBackground: '#FFFFFF',
   panelBackground: '#FFFFFF',
   categoryBarBackground: '#F5F5F5',
-  
+
   // Text colors
   textPrimary: '#000000',
   textSecondary: '#667781',
   textTertiary: '#8E8E93',
   textLight: '#999999',
-  
+
   // UI elements
   border: '#E0E0E0',
   separator: '#D1D1D6',
   highlight: '#E8E8E8',
-  
+
   // Status colors
   success: '#34C759',
   error: '#FF3B30',
   warning: '#FF9500',
   info: '#007AFF',
-  
+
   // Voice recording
   recordingIndicator: '#FF3B30',
   waveformActive: '#34C759',
@@ -132,8 +132,10 @@ export const Layout = {
 export const PlatformConfig = {
   isIOS: Platform.OS === 'ios',
   isAndroid: Platform.OS === 'android',
-  keyboardShowEvent: Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-  keyboardHideEvent: Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+  keyboardShowEvent:
+    Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+  keyboardHideEvent:
+    Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
   keyboardBehavior: Platform.OS === 'ios' ? 'padding' : undefined,
 };
 
@@ -230,11 +232,3 @@ export const Performance = {
     removeClippedSubviews: true,
   },
 };
-
-
-import { AppRegistry } from 'react-native';
-import App from './App';
-import { name as appName } from './app.json';
-
-AppRegistry.registerComponent(appName, () => App);
-

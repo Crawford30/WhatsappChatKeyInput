@@ -86,13 +86,17 @@ export const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
       {/* Panel Content */}
       <View style={styles.panelContent}>
         {activePanelType === PanelType.EMOJI && (
-          <EmojiPicker onEmojiSelect={onEmojiSelect} />
+          <EmojiPicker onEmojiSelect={onEmojiSelect} visible={true} />
         )}
         {activePanelType === PanelType.GIF && (
           <GifPicker onGifSelect={onStickerSelect} />
         )}
         {activePanelType === PanelType.STICKER && (
-          <StickerPicker onStickerSelect={onStickerSelect} />
+          <StickerPicker
+            onStickerSelect={console.log}
+            onCreateSticker={console.log}
+            visible
+          />
         )}
       </View>
     </View>
