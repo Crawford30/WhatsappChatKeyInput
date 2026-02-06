@@ -6,6 +6,7 @@ import {
   FlatList,
   StyleSheet,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { EMOJI_CATEGORIES, addRecentEmoji } from '../data/emojiData';
 
@@ -19,11 +20,11 @@ interface EmojiPickerProps {
 
 export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
   const [selectedCategory, setSelectedCategory] = useState(
-    EMOJI_CATEGORIES[0].id,
+    EMOJI_CATEGORIES[0].id
   );
 
   const currentCategory = EMOJI_CATEGORIES.find(
-    cat => cat.id === selectedCategory,
+    cat => cat.id === selectedCategory
   );
 
   const handleEmojiPress = useCallback(
@@ -31,7 +32,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
       addRecentEmoji(emoji);
       onEmojiSelect(emoji);
     },
-    [onEmojiSelect],
+    [onEmojiSelect]
   );
 
   const renderEmoji = useCallback(
@@ -39,12 +40,11 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
       <TouchableOpacity
         style={styles.emojiButton}
         onPress={() => handleEmojiPress(item)}
-        activeOpacity={0.6}
-      >
+        activeOpacity={0.6}>
         <Text style={styles.emoji}>{item}</Text>
       </TouchableOpacity>
     ),
-    [handleEmojiPress],
+    [handleEmojiPress]
   );
 
   const renderCategoryTab = useCallback(
@@ -56,16 +56,25 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
           selectedCategory === category.id && styles.categoryTabActive,
         ]}
         onPress={() => setSelectedCategory(category.id)}
-        activeOpacity={0.7}
-      >
+        activeOpacity={0.7}>
         <Text style={styles.categoryIcon}>{category.icon}</Text>
       </TouchableOpacity>
     ),
-    [selectedCategory],
+    [selectedCategory]
   );
 
   return (
     <View style={styles.container}>
+      {/* Horizontal Category Scrollbar */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoryScrollView}
+        contentContainerStyle={styles.categoryBar}>
+        {EMOJI_CATEGORIES.map(renderCategoryTab)}
+      </ScrollView>
+
+      {/* Emoji Grid */}
       <FlatList
         data={currentCategory?.emojis || []}
         renderItem={renderEmoji}
@@ -78,21 +87,43 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
         windowSize={10}
         initialNumToRender={40}
       />
-      <View style={styles.categoryBar}>
-        {EMOJI_CATEGORIES.map(renderCategoryTab)}
-      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    height: 350,
-    backgroundColor: '#FFFFFF',
+    flex: 1,
+    backgroundColor: '#0B141A', // WhatsApp dark background
+  },
+  categoryScrollView: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A3942',
+    backgroundColor: '#1F2C34',
+  },
+  categoryBar: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  categoryTab: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginHorizontal: 2,
+  },
+  categoryTabActive: {
+    backgroundColor: '#2A3942',
+  },
+  categoryIcon: {
+    fontSize: 24,
   },
   emojiGrid: {
     paddingHorizontal: 4,
     paddingTop: 8,
+    paddingBottom: 8,
   },
   emojiButton: {
     width: EMOJI_SIZE,
@@ -101,27 +132,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emoji: {
-    fontSize: 28,
-  },
-  categoryBar: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: '#F5F5F5',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  categoryTab: {
-    flex: 1,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  categoryTabActive: {
-    backgroundColor: '#E8E8E8',
-  },
-  categoryIcon: {
-    fontSize: 24,
+    fontSize: 18, // Larger emojis
   },
 });

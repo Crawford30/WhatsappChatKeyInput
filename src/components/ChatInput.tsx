@@ -11,9 +11,8 @@ import {
   Animated,
 } from 'react-native';
 import { InputMode } from '../types/inputTypes';
-import { Sticker, Message } from '../types/inputTypes';
-import { EmojiPicker } from './EmojiPicker';
-import { StickerPicker } from './StickerPicker';
+import type { Sticker, Message } from '../types/inputTypes';
+import { UnifiedPanel } from './UnifiedPanel';
 import { VoiceRecorder } from './VoiceRecorder';
 
 interface ChatInputProps {
@@ -38,7 +37,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setKeyboardVisible(true)
+      () => {
+        setKeyboardVisible(true);
+        // Hide panel when keyboard shows
+        if (inputMode === InputMode.PANEL) {
+          hidePanel();
+        }
+      }
     );
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
@@ -49,7 +54,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
       keyboardWillShow.remove();
       keyboardWillHide.remove();
     };
-  }, []);
+  }, [inputMode]);
 
   // Voice recording timer
   useEffect(() => {
@@ -74,18 +79,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     };
   }, [voiceRecording.isRecording]);
 
-  const showPanel = useCallback(
-    (mode: InputMode) => {
-      Animated.spring(panelHeightAnim, {
-        toValue: 1,
-        useNativeDriver: false,
-        tension: 50,
-        friction: 8,
-      }).start();
-      setInputMode(mode);
-    },
-    [panelHeightAnim]
-  );
+  const showPanel = useCallback(() => {
+    Animated.spring(panelHeightAnim, {
+      toValue: 1,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 8,
+    }).start();
+    setInputMode(InputMode.PANEL);
+  }, [panelHeightAnim]);
 
   const hidePanel = useCallback(() => {
     Animated.timing(panelHeightAnim, {
@@ -97,38 +99,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     });
   }, [panelHeightAnim]);
 
-  const handleEmojiPress = useCallback(() => {
-    if (inputMode === InputMode.EMOJI) {
-      // Close emoji panel
+  const handlePanelToggle = useCallback(() => {
+    if (inputMode === InputMode.PANEL) {
+      // Close panel and focus input
       hidePanel();
-      inputRef.current?.focus();
+      setTimeout(() => inputRef.current?.focus(), 100);
     } else {
-      // Open emoji panel
+      // Open panel
       Keyboard.dismiss();
-      setTimeout(() => showPanel(InputMode.EMOJI), 100);
-    }
-  }, [inputMode, hidePanel, showPanel]);
-
-  const handleStickerPress = useCallback(() => {
-    if (inputMode === InputMode.STICKER) {
-      // Close sticker panel
-      hidePanel();
-      inputRef.current?.focus();
-    } else {
-      // Open sticker panel
-      Keyboard.dismiss();
-      setTimeout(() => showPanel(InputMode.STICKER), 100);
+      setTimeout(() => showPanel(), 100);
     }
   }, [inputMode, hidePanel, showPanel]);
 
   const handleTextFocus = useCallback(() => {
-    if (inputMode !== InputMode.TEXT) {
+    if (inputMode === InputMode.PANEL) {
       hidePanel();
     }
   }, [inputMode, hidePanel]);
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setText(prev => prev + emoji);
+    // Keep panel open after selecting emoji
   }, []);
 
   const handleStickerSelect = useCallback(
@@ -166,7 +157,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
 
   const handleVoiceRelease = useCallback(() => {
     if (voiceRecording.isRecording && voiceRecording.duration > 0) {
-      // Send voice message
       onSendMessage({
         id: Date.now().toString(),
         text: 'Voice message',
@@ -212,13 +202,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
         {/* Input Bar */}
         {!voiceRecording.isRecording && (
           <View style={styles.inputBar}>
-            {/* Emoji Button */}
+            {/* Panel Toggle Button (Emoji/Sticker/GIF) */}
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={handleEmojiPress}
+              onPress={handlePanelToggle}
               activeOpacity={0.6}>
               <Text style={styles.iconText}>
-                {inputMode === InputMode.EMOJI ? '⌨️' : '😊'}
+                {inputMode === InputMode.PANEL ? '⌨️' : '😊'}
               </Text>
             </TouchableOpacity>
 
@@ -236,16 +226,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
                 maxLength={1000}
               />
 
-              {/* Attachment Buttons */}
+              {/* Attachment Buttons - only show when no text */}
               {text.length === 0 && (
                 <View style={styles.attachmentButtons}>
                   <TouchableOpacity
                     style={styles.iconButton}
-                    onPress={handleStickerPress}
                     activeOpacity={0.6}>
-                    <Text style={styles.iconText}>
-                      {inputMode === InputMode.STICKER ? '💬' : '📄'}
-                    </Text>
+                    <Text style={styles.iconText}>📎</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.iconButton}
@@ -277,14 +264,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
           </View>
         )}
 
-        {/* Emoji/Sticker Panel */}
+        {/* Unified Panel (Emoji/GIF/Sticker) */}
         {!keyboardVisible && (
           <Animated.View style={[styles.panel, { height: panelHeight }]}>
-            {inputMode === InputMode.EMOJI && (
-              <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-            )}
-            {inputMode === InputMode.STICKER && (
-              <StickerPicker onStickerSelect={handleStickerSelect} />
+            {inputMode === InputMode.PANEL && (
+              <UnifiedPanel
+                onEmojiSelect={handleEmojiSelect}
+                onStickerSelect={handleStickerSelect}
+              />
             )}
           </Animated.View>
         )}

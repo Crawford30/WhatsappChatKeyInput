@@ -1,9 +1,14 @@
 export enum InputMode {
   TEXT = 'TEXT',
-  EMOJI = 'EMOJI',
-  STICKER = 'STICKER',
+  PANEL = 'PANEL', // Unified panel for emoji/sticker/gif
   VOICE = 'VOICE',
   CAMERA = 'CAMERA',
+}
+
+export enum PanelType {
+  EMOJI = 'EMOJI',
+  GIF = 'GIF',
+  STICKER = 'STICKER',
 }
 
 export interface Message {
