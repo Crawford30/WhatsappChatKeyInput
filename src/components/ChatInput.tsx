@@ -202,18 +202,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
         {/* Input Bar */}
         {!voiceRecording.isRecording && (
           <View style={styles.inputBar}>
-            {/* Panel Toggle Button (Emoji/Sticker/GIF) */}
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={handlePanelToggle}
-              activeOpacity={0.6}>
-              <Text style={styles.iconText}>
-                {inputMode === InputMode.PANEL ? '⌨️' : '😊'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Text Input */}
+            {/* Text Input Wrapper */}
             <View style={styles.inputWrapper}>
+              {/* Emoji/Panel Toggle Button - Inside input on left */}
+              <TouchableOpacity
+                style={styles.emojiButton}
+                onPress={handlePanelToggle}
+                activeOpacity={0.6}>
+                <Text style={styles.emojiIcon}>
+                  {inputMode === InputMode.PANEL ? '⌨️' : '😊'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Text Input */}
               <TextInput
                 ref={inputRef}
                 style={styles.textInput}
@@ -230,35 +231,35 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
               {text.length === 0 && (
                 <View style={styles.attachmentButtons}>
                   <TouchableOpacity
-                    style={styles.iconButton}
+                    style={styles.attachButton}
                     activeOpacity={0.6}>
-                    <Text style={styles.iconText}>📎</Text>
+                    <Text style={styles.attachIcon}>📎</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.iconButton}
+                    style={styles.attachButton}
                     activeOpacity={0.6}>
-                    <Text style={styles.iconText}>📷</Text>
+                    <Text style={styles.attachIcon}>📷</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
 
-            {/* Send or Voice Button */}
+            {/* Send or Voice Button - Outside input on right */}
             {text.length > 0 ? (
               <TouchableOpacity
-                style={[styles.iconButton, styles.sendButton]}
+                style={[styles.actionButton, styles.sendButton]}
                 onPress={handleSendPress}
                 activeOpacity={0.6}>
                 <Text style={styles.sendIcon}>➤</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={styles.iconButton}
+                style={styles.actionButton}
                 onLongPress={handleVoiceLongPress}
                 onPressOut={handleVoiceRelease}
                 activeOpacity={0.6}
                 delayLongPress={100}>
-                <Text style={styles.iconText}>🎤</Text>
+                <Text style={styles.voiceIcon}>🎤</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -271,6 +272,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
               <UnifiedPanel
                 onEmojiSelect={handleEmojiSelect}
                 onStickerSelect={handleStickerSelect}
+                onClose={hidePanel}
               />
             )}
           </Animated.View>
@@ -299,39 +301,61 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     backgroundColor: '#F5F5F5',
     borderRadius: 20,
-    paddingHorizontal: 12,
-    marginHorizontal: 8,
+    paddingLeft: 4,
+    paddingRight: 12,
     minHeight: 40,
     maxHeight: 100,
+  },
+  emojiButton: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  emojiIcon: {
+    fontSize: 22,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
     paddingVertical: 10,
-    paddingRight: 8,
+    paddingHorizontal: 4,
     color: '#000',
   },
   attachmentButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingBottom: 8,
+    paddingBottom: 2,
   },
-  iconButton: {
-    width: 40,
-    height: 40,
+  attachButton: {
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 4,
   },
-  iconText: {
-    fontSize: 24,
+  attachIcon: {
+    fontSize: 20,
+  },
+  actionButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+    marginBottom: -2,
   },
   sendButton: {
     backgroundColor: '#25D366',
-    borderRadius: 20,
+    borderRadius: 22,
   },
   sendIcon: {
     fontSize: 20,
     color: '#FFFFFF',
+  },
+  voiceIcon: {
+    fontSize: 24,
   },
   panel: {
     overflow: 'hidden',

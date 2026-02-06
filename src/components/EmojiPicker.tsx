@@ -65,15 +65,6 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
 
   return (
     <View style={styles.container}>
-      {/* Horizontal Category Scrollbar */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoryScrollView}
-        contentContainerStyle={styles.categoryBar}>
-        {EMOJI_CATEGORIES.map(renderCategoryTab)}
-      </ScrollView>
-
       {/* Emoji Grid */}
       <FlatList
         data={currentCategory?.emojis || []}
@@ -87,6 +78,16 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
         windowSize={10}
         initialNumToRender={40}
       />
+
+      {/* Bottom Category Bar */}
+      <View style={styles.bottomBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryScrollContent}>
+          {EMOJI_CATEGORIES.map(renderCategoryTab)}
+        </ScrollView>
+      </View>
     </View>
   );
 };
@@ -94,31 +95,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0B141A', // WhatsApp dark background
-  },
-  categoryScrollView: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A3942',
-    backgroundColor: '#1F2C34',
-  },
-  categoryBar: {
-    flexDirection: 'row',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  categoryTab: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-    marginHorizontal: 2,
-  },
-  categoryTabActive: {
-    backgroundColor: '#2A3942',
-  },
-  categoryIcon: {
-    fontSize: 24,
+    backgroundColor: '#0B141A',
   },
   emojiGrid: {
     paddingHorizontal: 4,
@@ -132,6 +109,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emoji: {
-    fontSize: 18, // Larger emojis
+    fontSize: 28,
+  },
+  bottomBar: {
+    borderTopWidth: 1,
+    borderTopColor: '#2A3942',
+    backgroundColor: '#1F2C34',
+  },
+  categoryScrollContent: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    gap: 4,
+  },
+  categoryTab: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  categoryTabActive: {
+    backgroundColor: '#2A3942',
+  },
+  categoryIcon: {
+    fontSize: 24,
   },
 });

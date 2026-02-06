@@ -1,26 +1,20 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { PanelType, Sticker } from '../types/inputTypes';
 import { EmojiPicker } from './EmojiPicker';
 import { StickerPicker } from './StickerPicker';
 import { GifPicker } from './GifPicker';
 
-const { width } = Dimensions.get('window');
-
 interface UnifiedPanelProps {
   onEmojiSelect: (emoji: string) => void;
   onStickerSelect: (sticker: Sticker) => void;
+  onClose: () => void;
 }
 
 export const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
   onEmojiSelect,
   onStickerSelect,
+  onClose,
 }) => {
   const [activePanelType, setActivePanelType] = useState<PanelType>(
     PanelType.EMOJI
@@ -48,21 +42,32 @@ export const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Top Tab Bar - WhatsApp Style */}
+      {/* Top Tab Bar */}
       <View style={styles.topTabBar}>
-        <View style={styles.searchContainer}>
-          <Text style={styles.searchIcon}>🔍</Text>
+        {/* Search Icon - Only visible in EMOJI mode */}
+        <View style={styles.leftSection}>
+          {activePanelType === PanelType.EMOJI && (
+            <TouchableOpacity style={styles.searchButton}>
+              <Text style={styles.searchIcon}>🔍</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
+        {/* Center Tabs */}
         <View style={styles.tabsContainer}>
           {renderPanelTab(PanelType.EMOJI, 'EMOJI')}
           {renderPanelTab(PanelType.GIF, 'GIF')}
           {renderPanelTab(PanelType.STICKER, 'STICKER')}
         </View>
 
-        <TouchableOpacity style={styles.closeButton}>
-          <Text style={styles.closeIcon}>✕</Text>
-        </TouchableOpacity>
+        {/* Close Button - Only visible in EMOJI mode */}
+        <View style={styles.rightSection}>
+          {activePanelType === PanelType.EMOJI && (
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Text style={styles.closeIcon}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Panel Content */}
@@ -84,18 +89,22 @@ export const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
 const styles = StyleSheet.create({
   container: {
     height: 350,
-    backgroundColor: '#1F2C34', // Dark theme like WhatsApp
+    backgroundColor: '#1F2C34',
   },
   topTabBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1F2C34',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#2A3942',
   },
-  searchContainer: {
+  leftSection: {
+    width: 48,
+    alignItems: 'center',
+  },
+  searchButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
@@ -103,13 +112,13 @@ const styles = StyleSheet.create({
   },
   searchIcon: {
     fontSize: 20,
-    color: '#8696A0',
+    opacity: 0.7,
   },
   tabsContainer: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 20,
+    gap: 24,
   },
   panelTab: {
     paddingVertical: 8,
@@ -123,7 +132,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   tabLabelActive: {
-    color: '#00A884', // WhatsApp green
+    color: '#00A884',
   },
   activeIndicator: {
     position: 'absolute',
@@ -134,6 +143,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#00A884',
     borderRadius: 2,
   },
+  rightSection: {
+    width: 48,
+    alignItems: 'center',
+  },
   closeButton: {
     width: 40,
     height: 40,
@@ -143,9 +156,10 @@ const styles = StyleSheet.create({
   closeIcon: {
     fontSize: 18,
     color: '#8696A0',
+    fontWeight: '300',
   },
   panelContent: {
     flex: 1,
-    backgroundColor: '#0B141A', // Darker background
+    backgroundColor: '#0B141A',
   },
 });

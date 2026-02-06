@@ -53,7 +53,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           }).start();
         }
       },
-    }),
+    })
   ).current;
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           duration: 600,
           useNativeDriver: true,
         }),
-      ]),
+      ])
     ).start();
   }, [scaleAnim]);
 
@@ -83,8 +83,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   return (
     <Animated.View
       style={[styles.container, { transform: [{ translateX: slideAnim }] }]}
-      {...panResponder.panHandlers}
-    >
+      {...panResponder.panHandlers}>
       <View style={styles.content}>
         <Animated.View
           style={[

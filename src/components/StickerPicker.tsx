@@ -7,12 +7,13 @@ import {
   StyleSheet,
   Dimensions,
   Image,
+  ScrollView,
 } from 'react-native';
 import { STICKER_PACKS } from '../data/stickerData';
 import type { Sticker } from '../types/inputTypes';
 
 const { width } = Dimensions.get('window');
-const STICKER_SIZE = width / 4;
+const STICKER_SIZE = (width - 32) / 4;
 const NUM_COLUMNS = 4;
 
 interface StickerPickerProps {
@@ -30,7 +31,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
     (sticker: Sticker) => {
       onStickerSelect(sticker);
     },
-    [onStickerSelect],
+    [onStickerSelect]
   );
 
   const renderSticker = useCallback(
@@ -38,42 +39,67 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       <TouchableOpacity
         style={styles.stickerButton}
         onPress={() => handleStickerPress(item)}
-        activeOpacity={0.6}
-      >
-        <Image
-          source={{ uri: item.image }}
-          style={styles.stickerImage}
-          resizeMode="contain"
-        />
+        activeOpacity={0.6}>
+        <View style={styles.stickerImageContainer}>
+          <Image
+            source={{ uri: item.image }}
+            style={styles.stickerImage}
+            resizeMode="contain"
+          />
+        </View>
       </TouchableOpacity>
     ),
-    [handleStickerPress],
+    [handleStickerPress]
   );
 
   const renderPackTab = useCallback(
-    (pack: (typeof STICKER_PACKS)[0]) => (
-      <TouchableOpacity
-        key={pack.id}
-        style={[
-          styles.packTab,
-          selectedPack === pack.id && styles.packTabActive,
-        ]}
-        onPress={() => setSelectedPack(pack.id)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.packIcon}>{pack.icon}</Text>
-      </TouchableOpacity>
+    (pack: (typeof STICKER_PACKS)[0]) => {
+      const isActive = selectedPack === pack.id;
+
+      return (
+        <TouchableOpacity
+          key={pack.id}
+          style={[styles.packTab, isActive && styles.packTabActive]}
+          onPress={() => setSelectedPack(pack.id)}
+          activeOpacity={0.7}>
+          <View style={styles.packIconContainer}>
+            <Text style={styles.packIcon}>{pack.icon}</Text>
+          </View>
+          {isActive && <View style={styles.packActiveIndicator} />}
+        </TouchableOpacity>
+      );
+    },
+    [selectedPack]
+  );
+
+  // Header with Create button and pack info
+  const renderHeader = useCallback(
+    () => (
+      <View style={styles.headerContainer}>
+        <View style={styles.createSection}>
+          <View style={styles.createButton}>
+            <View style={styles.createIconCircle}>
+              <Text style={styles.createIcon}>✏️</Text>
+            </View>
+            <Text style={styles.createText}>Create</Text>
+          </View>
+        </View>
+
+        {/* Display current pack stickers below */}
+      </View>
     ),
-    [selectedPack],
+    []
   );
 
   return (
     <View style={styles.container}>
+      {/* Stickers Grid */}
       <FlatList
         data={currentPack?.stickers || []}
         renderItem={renderSticker}
         keyExtractor={item => item.id}
         numColumns={NUM_COLUMNS}
+        ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.stickerGrid}
         showsVerticalScrollIndicator={false}
         removeClippedSubviews={true}
@@ -81,19 +107,56 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         windowSize={5}
         initialNumToRender={16}
       />
-      <View style={styles.packBar}>{STICKER_PACKS.map(renderPackTab)}</View>
+
+      {/* Bottom Pack Bar */}
+      <View style={styles.bottomBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.packScrollContent}>
+          {STICKER_PACKS.map(renderPackTab)}
+        </ScrollView>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    height: 350,
-    backgroundColor: '#FFFFFF',
+    flex: 1,
+    backgroundColor: '#0B141A',
+  },
+  headerContainer: {
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  createSection: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  createButton: {
+    alignItems: 'center',
+    width: STICKER_SIZE - 16,
+  },
+  createIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#00A884',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  createIcon: {
+    fontSize: 24,
+  },
+  createText: {
+    fontSize: 13,
+    color: '#8696A0',
+    fontWeight: '500',
   },
   stickerGrid: {
-    paddingHorizontal: 4,
-    paddingTop: 8,
+    paddingHorizontal: 8,
   },
   stickerButton: {
     width: STICKER_SIZE,
@@ -102,29 +165,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 8,
   },
-  stickerImage: {
+  stickerImageContainer: {
     width: STICKER_SIZE - 16,
     height: STICKER_SIZE - 16,
+    backgroundColor: '#1F2C34',
+    borderRadius: 8,
+    overflow: 'hidden',
   },
-  packBar: {
-    flexDirection: 'row',
+  stickerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  bottomBar: {
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: '#F5F5F5',
+    borderTopColor: '#2A3942',
+    backgroundColor: '#1F2C34',
+  },
+  packScrollContent: {
     paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
+    gap: 8,
   },
   packTab: {
-    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  packTabActive: {
+    // Active styling handled by indicator
+  },
+  packIconContainer: {
+    width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
-  },
-  packTabActive: {
-    backgroundColor: '#E8E8E8',
   },
   packIcon: {
-    fontSize: 24,
+    fontSize: 28,
+  },
+  packActiveIndicator: {
+    position: 'absolute',
+    bottom: -8,
+    left: '50%',
+    marginLeft: -15,
+    width: 30,
+    height: 3,
+    backgroundColor: '#00A884',
+    borderRadius: 2,
   },
 });
