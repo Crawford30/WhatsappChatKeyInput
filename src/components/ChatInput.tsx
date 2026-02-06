@@ -7,14 +7,15 @@ import {
   StyleSheet,
   Keyboard,
   Platform,
-  KeyboardAvoidingView,
   Animated,
   BackHandler,
+  Alert,
 } from 'react-native';
 import { InputMode } from '../types/inputTypes';
 import type { Sticker, Message } from '../types/inputTypes';
 import { UnifiedPanel } from './UnifiedPanel';
 import { VoiceRecorder } from './VoiceRecorder';
+import { AttachmentMenu } from './AttachmentMenu';
 
 interface ChatInputProps {
   onSendMessage: (message: Message) => void;
@@ -24,6 +25,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
   const [inputMode, setInputMode] = useState<InputMode>(InputMode.TEXT);
   const [text, setText] = useState('');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
   const [voiceRecording, setVoiceRecording] = useState({
     isRecording: false,
     duration: 0,
@@ -65,16 +67,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
         if (inputMode === InputMode.PANEL) {
           hidePanel();
         }
+        // Hide attachment menu when keyboard shows
+        if (attachmentMenuVisible) {
+          setAttachmentMenuVisible(false);
+        }
       }
     );
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
         setKeyboardVisible(false);
-        // Also hide panel when keyboard is dismissed (Android back button)
-        if (inputMode === InputMode.PANEL) {
-          hidePanel();
-        }
       }
     );
 
@@ -82,23 +84,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
       keyboardWillShow.remove();
       keyboardWillHide.remove();
     };
-  }, [inputMode, hidePanel]);
+  }, [inputMode, hidePanel, attachmentMenuVisible]);
 
   // Handle Android back button
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
+        if (attachmentMenuVisible) {
+          setAttachmentMenuVisible(false);
+          return true;
+        }
         if (inputMode === InputMode.PANEL) {
           hidePanel();
-          return true; // Prevent default back behavior
+          return true;
         }
-        return false; // Allow default back behavior
+        return false;
       }
     );
 
     return () => backHandler.remove();
-  }, [inputMode, hidePanel]);
+  }, [inputMode, hidePanel, attachmentMenuVisible]);
 
   // Voice recording timer
   useEffect(() => {
@@ -125,11 +131,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
 
   const handlePanelToggle = useCallback(() => {
     if (inputMode === InputMode.PANEL) {
-      // Close panel and focus input
       hidePanel();
       setTimeout(() => inputRef.current?.focus(), 100);
     } else {
-      // Open panel
       Keyboard.dismiss();
       setTimeout(() => showPanel(), 100);
     }
@@ -143,15 +147,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setText(prev => prev + emoji);
-    // Keep panel open after selecting emoji
   }, []);
 
   const handleBackspace = useCallback(() => {
     setText(prev => {
       if (!prev) return prev;
-
-      // Handle emoji and multi-byte characters properly
-      // Use Array.from to handle Unicode properly
       const chars = Array.from(prev);
       return chars.slice(0, -1).join('');
     });
@@ -215,6 +215,54 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     });
   }, []);
 
+  // Attachment menu handlers
+  const handleAttachmentPress = useCallback(() => {
+    Keyboard.dismiss();
+    if (inputMode === InputMode.PANEL) {
+      hidePanel();
+    }
+    setTimeout(() => {
+      setAttachmentMenuVisible(true);
+    }, 100);
+  }, [inputMode, hidePanel]);
+
+  const handleCloseAttachmentMenu = useCallback(() => {
+    setAttachmentMenuVisible(false);
+  }, []);
+
+  // Individual attachment handlers
+  const handleDocumentPress = useCallback(() => {
+    Alert.alert('Document', 'Document picker will open here');
+  }, []);
+
+  const handleCameraPress = useCallback(() => {
+    Alert.alert('Camera', 'Camera will open here');
+  }, []);
+
+  const handleGalleryPress = useCallback(() => {
+    Alert.alert('Gallery', 'Gallery picker will open here');
+  }, []);
+
+  const handleAudioPress = useCallback(() => {
+    Alert.alert('Audio', 'Audio picker will open here');
+  }, []);
+
+  const handleLocationPress = useCallback(() => {
+    Alert.alert('Location', 'Location picker will open here');
+  }, []);
+
+  const handleContactPress = useCallback(() => {
+    Alert.alert('Contact', 'Contact picker will open here');
+  }, []);
+
+  const handlePollPress = useCallback(() => {
+    Alert.alert('Poll', 'Poll creator will open here');
+  }, []);
+
+  const handleEventPress = useCallback(() => {
+    Alert.alert('Event', 'Event creator will open here');
+  }, []);
+
   const panelHeight = panelHeightAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 350],
@@ -265,11 +313,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
               <View style={styles.attachmentButtons}>
                 <TouchableOpacity
                   style={styles.attachButton}
+                  onPress={handleAttachmentPress}
                   activeOpacity={0.6}>
                   <Text style={styles.attachIcon}>📎</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.attachButton}
+                  onPress={handleCameraPress}
                   activeOpacity={0.6}>
                   <Text style={styles.attachIcon}>📷</Text>
                 </TouchableOpacity>
@@ -292,7 +342,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
               onPressOut={handleVoiceRelease}
               activeOpacity={0.6}
               delayLongPress={100}>
-              <Text style={styles.voiceIcon}>🎤</Text>
+              <Text style={styles.actionIcon}>🎤</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -312,59 +362,74 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
           )}
         </Animated.View>
       )}
+
+      {/* Attachment Menu */}
+      <AttachmentMenu
+        visible={attachmentMenuVisible}
+        onClose={handleCloseAttachmentMenu}
+        onDocumentPress={handleDocumentPress}
+        onCameraPress={handleCameraPress}
+        onGalleryPress={handleGalleryPress}
+        onAudioPress={handleAudioPress}
+        onLocationPress={handleLocationPress}
+        onContactPress={handleContactPress}
+        onPollPress={handlePollPress}
+        onEventPress={handleEventPress}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#0B141A',
   },
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingHorizontal: 8,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 6,
+    backgroundColor: '#1F2C34',
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    gap: 8,
+    borderTopColor: '#2A3942',
   },
   inputWrapper: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    alignItems: 'flex-end',
+    backgroundColor: '#2A3942',
     borderRadius: 20,
-    paddingHorizontal: 8,
-    minHeight: 40,
+    paddingHorizontal: 4,
+    marginRight: 8,
+    minHeight: 42,
     maxHeight: 100,
   },
   emojiButton: {
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 1,
   },
   emojiIcon: {
-    fontSize: 22,
+    fontSize: 24,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    color: '#000',
-    minHeight: 32,
+    paddingVertical: 10,
+    paddingRight: 8,
+    color: '#FFFFFF',
+    maxHeight: 100,
   },
   attachmentButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    paddingBottom: 1,
   },
   attachButton: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -372,24 +437,25 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   actionButton: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#2A3942',
   },
   sendButton: {
-    backgroundColor: '#25D366',
-    borderRadius: 22,
+    backgroundColor: '#00A884',
+  },
+  actionIcon: {
+    fontSize: 24,
   },
   sendIcon: {
-    fontSize: 20,
+    fontSize: 22,
     color: '#FFFFFF',
-  },
-  voiceIcon: {
-    fontSize: 24,
   },
   panel: {
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1F2C34',
   },
 });
