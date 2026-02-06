@@ -36,7 +36,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
   const panelHeightAnim = useRef(new Animated.Value(0)).current;
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Define these callbacks BEFORE the useEffect hooks that use them
   const showPanel = useCallback(() => {
     Animated.spring(panelHeightAnim, {
       toValue: 1,
@@ -63,11 +62,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       () => {
         setKeyboardVisible(true);
-        // Hide panel when keyboard shows
         if (inputMode === InputMode.PANEL) {
           hidePanel();
         }
-        // Hide attachment menu when keyboard shows
         if (attachmentMenuVisible) {
           setAttachmentMenuVisible(false);
         }
@@ -215,7 +212,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     });
   }, []);
 
-  // Attachment menu handlers
   const handleAttachmentPress = useCallback(() => {
     Keyboard.dismiss();
     if (inputMode === InputMode.PANEL) {
@@ -230,7 +226,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     setAttachmentMenuVisible(false);
   }, []);
 
-  // Individual attachment handlers
   const handleDocumentPress = useCallback(() => {
     Alert.alert('Document', 'Document picker will open here');
   }, []);
@@ -284,7 +279,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
         <View style={styles.inputBar}>
           {/* Text Input Wrapper */}
           <View style={styles.inputWrapper}>
-            {/* Emoji/Panel Toggle Button - Inside input on left */}
+            {/* Emoji/Panel Toggle Button */}
             <TouchableOpacity
               style={styles.emojiButton}
               onPress={handlePanelToggle}
@@ -299,13 +294,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
               ref={inputRef}
               style={styles.textInput}
               placeholder="Message"
-              placeholderTextColor="#999"
+              placeholderTextColor="#8696A0"
               value={text}
               onChangeText={setText}
               onFocus={handleTextFocus}
               multiline
               maxLength={1000}
-              textAlignVertical="center"
             />
 
             {/* Attachment Buttons - only show when no text */}
@@ -327,7 +321,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
             )}
           </View>
 
-          {/* Send or Voice Button - Outside input on right */}
+          {/* Send or Voice Button */}
           {text.length > 0 ? (
             <TouchableOpacity
               style={[styles.actionButton, styles.sendButton]}
@@ -390,51 +384,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     backgroundColor: '#1F2C34',
-    borderTopWidth: 1,
-    borderTopColor: '#2A3942',
   },
   inputWrapper: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     backgroundColor: '#2A3942',
-    borderRadius: 20,
-    paddingHorizontal: 4,
+    borderRadius: 22,
+    paddingLeft: 4,
+    paddingRight: 4,
     marginRight: 8,
-    minHeight: 42,
-    maxHeight: 100,
+    minHeight: 44,
+    maxHeight: 120,
   },
   emojiButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 1,
   },
   emojiIcon: {
     fontSize: 24,
   },
   textInput: {
     flex: 1,
-    fontSize: 16,
-    paddingVertical: 10,
-    paddingRight: 8,
-    color: '#FFFFFF',
+    fontSize: 17,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    color: '#E9EDEF',
     maxHeight: 100,
   },
   attachmentButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingBottom: 1,
   },
   attachButton: {
-    width: 36,
+    width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
   attachIcon: {
-    fontSize: 20,
+    fontSize: 22,
   },
   actionButton: {
     width: 48,
@@ -442,7 +433,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#2A3942',
+    backgroundColor: '#00A884',
   },
   sendButton: {
     backgroundColor: '#00A884',
@@ -451,8 +442,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   sendIcon: {
-    fontSize: 22,
+    fontSize: 20,
     color: '#FFFFFF',
+    fontWeight: '600',
   },
   panel: {
     overflow: 'hidden',

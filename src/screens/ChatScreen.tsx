@@ -39,7 +39,6 @@ export const ChatScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Auto-scroll to bottom when new message is added
     if (messages.length > 0) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -98,16 +97,12 @@ export const ChatScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView
-      style={[
-        styles.container,
-        { paddingTop: insets.top, paddingBottom: insets.bottom },
-      ]}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {renderHeader()}
       <KeyboardAvoidingView
-        style={styles.keyboardAvoid}
+        style={styles.flex1}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+        keyboardVerticalOffset={0}>
         <View style={styles.chatContainer}>
           <FlatList
             ref={flatListRef}
@@ -127,7 +122,10 @@ export const ChatScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0B141A',
+  },
+  flex1: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -135,8 +133,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 10,
     backgroundColor: '#25D366',
-    borderBottomWidth: 1,
-    borderBottomColor: '#20BC5A',
   },
   backButton: {
     width: 40,
@@ -170,9 +166,6 @@ const styles = StyleSheet.create({
   menuIcon: {
     fontSize: 24,
     color: '#FFFFFF',
-  },
-  keyboardAvoid: {
-    flex: 1,
   },
   chatContainer: {
     flex: 1,
