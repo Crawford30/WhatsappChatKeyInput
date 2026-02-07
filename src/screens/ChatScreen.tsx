@@ -68,7 +68,7 @@ export const ChatScreen: React.FC = () => {
             <Text style={styles.messageText}>{item.text}</Text>
           )}
           <Text style={styles.timestamp}>
-            {item.timestamp.toLocaleTimeString([], {
+            {item.timestamp.toLocaleTimeString('en-US', {
               hour: '2-digit',
               minute: '2-digit',
             })}
@@ -78,42 +78,46 @@ export const ChatScreen: React.FC = () => {
     );
   }, []);
 
-  const renderHeader = useCallback(
-    () => (
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>WhatsApp Chat</Text>
-          <Text style={styles.headerSubtitle}>online</Text>
-        </View>
-        <TouchableOpacity style={styles.menuButton}>
-          <Text style={styles.menuIcon}>⋮</Text>
-        </TouchableOpacity>
-      </View>
-    ),
-    []
-  );
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {renderHeader()}
       <KeyboardAvoidingView
-        style={styles.flex1}
+        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}>
-        <View style={styles.chatContainer}>
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>WhatsApp Voice Demo</Text>
+            <Text style={styles.headerSubtitle}>Online</Text>
+          </View>
+          <TouchableOpacity style={styles.headerButton}>
+            <Text style={styles.headerIcon}>📞</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton}>
+            <Text style={styles.headerIcon}>⋮</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Chat Background */}
+        <View style={styles.chatBackground}>
           <FlatList
             ref={flatListRef}
             data={messages}
             renderItem={renderMessage}
             keyExtractor={item => item.id}
-            contentContainerStyle={styles.messageList}
+            contentContainerStyle={[
+              styles.messageList,
+              { paddingBottom: insets.bottom },
+            ]}
             showsVerticalScrollIndicator={false}
           />
-          <ChatInput onSendMessage={handleSendMessage} />
         </View>
+
+        {/* Chat Input */}
+        <ChatInput onSendMessage={handleSendMessage} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -124,93 +128,81 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0B141A',
   },
-  flex1: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#25D366',
+    backgroundColor: '#1F2C34',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A3942',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 8,
   },
   backIcon: {
-    fontSize: 28,
-    color: '#FFFFFF',
+    fontSize: 24,
+    color: '#E9EDEF',
   },
   headerInfo: {
     flex: 1,
     marginLeft: 8,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#E9EDEF',
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#E0F5E9',
+    color: '#8696A0',
   },
-  menuButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+  headerButton: {
+    padding: 8,
+    marginLeft: 8,
   },
-  menuIcon: {
-    fontSize: 24,
-    color: '#FFFFFF',
+  headerIcon: {
+    fontSize: 20,
+    color: '#E9EDEF',
   },
-  chatContainer: {
+  chatBackground: {
     flex: 1,
-    backgroundColor: '#E5DDD5',
+    backgroundColor: '#0B141A',
   },
   messageList: {
     paddingHorizontal: 12,
     paddingTop: 12,
-    paddingBottom: 8,
   },
   messageContainer: {
-    marginBottom: 12,
+    marginBottom: 8,
     alignItems: 'flex-end',
   },
   messageBubble: {
-    backgroundColor: '#DCF8C6',
+    backgroundColor: '#005C4B',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    padding: 8,
     maxWidth: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
-  },
-  messageText: {
-    fontSize: 16,
-    color: '#000',
-    marginBottom: 4,
-  },
-  timestamp: {
-    fontSize: 11,
-    color: '#667781',
-    alignSelf: 'flex-end',
+    minWidth: 100,
   },
   voiceMessage: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   voiceIcon: {
     fontSize: 20,
+    marginRight: 8,
   },
   stickerMessage: {
     backgroundColor: 'transparent',
+  },
+  messageText: {
+    fontSize: 15,
+    color: '#E9EDEF',
+  },
+  timestamp: {
+    fontSize: 11,
+    color: '#8696A0',
+    marginTop: 4,
+    alignSelf: 'flex-end',
   },
 });

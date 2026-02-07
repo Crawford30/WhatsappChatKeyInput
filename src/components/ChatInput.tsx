@@ -16,6 +16,8 @@ import type { Sticker, Message } from '../types/inputTypes';
 import { UnifiedPanel } from './UnifiedPanel';
 import { VoiceRecorder } from './VoiceRecorder';
 import { AttachmentMenu } from './AttachmentMenu';
+import { useVoiceRecorder } from '../common/VoiceRecorderContext';
+import { RecordingState } from '../common/VoiceRecorderService';
 
 interface ChatInputProps {
   onSendMessage: (message: Message) => void;
@@ -26,15 +28,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
   const [text, setText] = useState('');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
-  const [voiceRecording, setVoiceRecording] = useState({
-    isRecording: false,
-    duration: 0,
-    amplitude: [] as number[],
-  });
 
   const inputRef = useRef<TextInput>(null);
   const panelHeightAnim = useRef(new Animated.Value(0)).current;
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const {
+    recordingState,
+    startRecording,
+    handleSendVoiceMessage,
+    cancelRecording,
+  } = useVoiceRecorder();
 
   const showPanel = useCallback(() => {
     Animated.spring(panelHeightAnim, {
@@ -103,29 +106,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     return () => backHandler.remove();
   }, [inputMode, hidePanel, attachmentMenuVisible]);
 
-  // Voice recording timer
-  useEffect(() => {
-    if (voiceRecording.isRecording) {
-      recordingTimerRef.current = setInterval(() => {
-        setVoiceRecording(prev => ({
-          ...prev,
-          duration: prev.duration + 1,
-          amplitude: [...prev.amplitude.slice(-20), Math.random() * 0.8 + 0.2],
-        }));
-      }, 1000);
-    } else {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-    }
-
-    return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-    };
-  }, [voiceRecording.isRecording]);
-
   const handlePanelToggle = useCallback(() => {
     if (inputMode === InputMode.PANEL) {
       hidePanel();
@@ -179,38 +159,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     }
   }, [text, onSendMessage]);
 
-  const handleVoiceLongPress = useCallback(() => {
-    setVoiceRecording({
-      isRecording: true,
-      duration: 0,
-      amplitude: [],
-    });
-  }, []);
+  const handleVoicePress = useCallback(async () => {
+    try {
+      await startRecording();
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+    }
+  }, [startRecording]);
 
-  const handleVoiceRelease = useCallback(() => {
-    if (voiceRecording.isRecording && voiceRecording.duration > 0) {
+  const handleVoiceComplete = useCallback(
+    async (audioData: any) => {
+      await handleSendVoiceMessage(audioData);
+
       onSendMessage({
         id: Date.now().toString(),
         text: 'Voice message',
         timestamp: new Date(),
         type: 'voice',
-        duration: voiceRecording.duration,
+        duration: audioData.duration,
       });
-    }
-    setVoiceRecording({
-      isRecording: false,
-      duration: 0,
-      amplitude: [],
-    });
-  }, [voiceRecording, onSendMessage]);
+    },
+    [handleSendVoiceMessage, onSendMessage]
+  );
 
   const handleVoiceCancel = useCallback(() => {
-    setVoiceRecording({
-      isRecording: false,
-      duration: 0,
-      amplitude: [],
-    });
-  }, []);
+    cancelRecording();
+  }, [cancelRecording]);
 
   const handleAttachmentPress = useCallback(() => {
     Keyboard.dismiss();
@@ -263,23 +237,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     outputRange: [0, 350],
   });
 
+  const isRecording =
+    recordingState === RecordingState.RECORDING ||
+    recordingState === RecordingState.PAUSED;
+
   return (
     <View style={styles.container}>
-      {/* Voice Recording Overlay */}
-      {voiceRecording.isRecording && (
+      {/* Voice Recording Overlay - ONLY show when actually recording */}
+      {isRecording && (
         <VoiceRecorder
-          recording={voiceRecording}
           onCancel={handleVoiceCancel}
-          onSend={handleVoiceRelease}
+          onComplete={handleVoiceComplete}
         />
       )}
 
-      {/* Input Bar */}
-      {!voiceRecording.isRecording && (
+      {/* Input Bar - ONLY show when NOT recording */}
+      {!isRecording && (
         <View style={styles.inputBar}>
-          {/* Text Input Wrapper */}
           <View style={styles.inputWrapper}>
-            {/* Emoji/Panel Toggle Button */}
+            {/* Emoji Button */}
             <TouchableOpacity
               style={styles.emojiButton}
               onPress={handlePanelToggle}
@@ -302,8 +278,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
               maxLength={1000}
             />
 
-            {/* Attachment Buttons - only show when no text */}
-            {text.length === 0 && (
+            {/* Attachment Buttons */}
+            {!text && (
               <View style={styles.attachmentButtons}>
                 <TouchableOpacity
                   style={styles.attachButton}
@@ -322,7 +298,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
           </View>
 
           {/* Send or Voice Button */}
-          {text.length > 0 ? (
+          {text.trim() ? (
             <TouchableOpacity
               style={[styles.actionButton, styles.sendButton]}
               onPress={handleSendPress}
@@ -332,10 +308,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
           ) : (
             <TouchableOpacity
               style={styles.actionButton}
-              onLongPress={handleVoiceLongPress}
-              onPressOut={handleVoiceRelease}
-              activeOpacity={0.6}
-              delayLongPress={100}>
+              onPress={handleVoicePress}
+              activeOpacity={0.6}>
               <Text style={styles.actionIcon}>🎤</Text>
             </TouchableOpacity>
           )}
@@ -343,7 +317,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
       )}
 
       {/* Unified Panel (Emoji/GIF/Sticker) */}
-      {!keyboardVisible && (
+      {!keyboardVisible && !isRecording && (
         <Animated.View style={[styles.panel, { height: panelHeight }]}>
           {inputMode === InputMode.PANEL && (
             <UnifiedPanel
