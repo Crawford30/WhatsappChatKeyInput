@@ -1,401 +1,275 @@
-import NitroSound from 'react-native-nitro-sound';
-import { Platform } from 'react-native';
-import RNBlobUtil from 'react-native-blob-util';
-import { requestAudioPermission } from '../utils/fileUtils';
-
-export interface AudioData {
-  uri: string;
-  type: string;
-  name: string;
-  duration: number;
-  size: number;
-}
+import Sound from 'react-native-nitro-sound';
 
 export enum RecordingState {
   IDLE = 'IDLE',
   RECORDING = 'RECORDING',
   PAUSED = 'PAUSED',
-  STOPPING = 'STOPPING',
-  ERROR = 'ERROR',
+  STOPPED = 'STOPPED',
 }
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+export interface AudioData {
+  uri: string;
+  duration: number;
+  size: number;
+}
 
-/**
- * Improved Audio Recorder Service with WhatsApp-style features
- * - Real pause/resume support (with time tracking)
- * - Better error handling
- * - Proper state management
- * - File cleanup
- */
+type StateChangeCallback = (state: RecordingState, time: string) => void;
+
 class VoiceRecorderService {
   private static instance: VoiceRecorderService;
-  private recordingPath: string | null = null;
+  private state: RecordingState = RecordingState.IDLE;
   private recordingStartTime: number = 0;
-  private pausedTime: number = 0;
-  private totalPausedDuration: number = 0;
-  private recordingState: RecordingState = RecordingState.IDLE;
-  private listeners: Set<(state: RecordingState, time: string) => void> =
-    new Set();
-  private recordingDuration: number = 0;
-  private updateInterval: NodeJS.Timeout | null = null;
-  private isRecorderActive: boolean = false;
+  private pausedDuration: number = 0;
+  private pauseStartTime: number = 0;
+  private timerInterval: NodeJS.Timeout | null = null;
+  private subscribers: Set<StateChangeCallback> = new Set();
+  private currentRecordTime: string = '0:00';
+  private recordingPath: string | null = null;
 
-  private constructor() {
-    console.log('[AudioRecorderService] Service initialized');
-  }
+  private constructor() {}
 
-  public static getInstance(): VoiceRecorderService {
+  static getInstance(): VoiceRecorderService {
     if (!VoiceRecorderService.instance) {
       VoiceRecorderService.instance = new VoiceRecorderService();
     }
     return VoiceRecorderService.instance;
   }
 
-  // ==================== File Management ====================
-
-  private generateUniqueFileName(): string {
-    const timestamp = new Date().getTime();
-    const randomString = Math.random().toString(36).substring(2, 7);
-    return `voice_message_${timestamp}_${randomString}.m4a`;
+  subscribe(callback: StateChangeCallback): () => void {
+    this.subscribers.add(callback);
+    return () => {
+      this.subscribers.delete(callback);
+    };
   }
 
-  private generateRecordingPath(): string {
-    const fileName = this.generateUniqueFileName();
-    const basePath =
-      Platform.OS === 'ios'
-        ? RNBlobUtil.fs.dirs.DocumentDir
-        : RNBlobUtil.fs.dirs.CacheDir;
-    return `${basePath}/${fileName}`;
+  private notifySubscribers(): void {
+    this.subscribers.forEach(callback => {
+      callback(this.state, this.currentRecordTime);
+    });
   }
 
-  private async ensureDirectoryExists(filePath: string): Promise<void> {
-    try {
-      const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
-      const exists = await RNBlobUtil.fs.exists(dirPath);
-      if (!exists) {
-        await RNBlobUtil.fs.mkdir(dirPath);
-        console.log(`[AudioRecorderService] Created directory: ${dirPath}`);
-      }
-    } catch (error) {
-      console.warn('[AudioRecorderService] Directory check error:', error);
+  private updateTimer(): void {
+    if (this.state === RecordingState.RECORDING) {
+      const elapsed =
+        Date.now() - this.recordingStartTime - this.pausedDuration;
+      this.currentRecordTime = this.formatTime(elapsed);
+      this.notifySubscribers();
     }
   }
 
-  // ==================== State Management ====================
-
-  public subscribe(
-    callback: (state: RecordingState, time: string) => void
-  ): () => void {
-    this.listeners.add(callback);
-    return () => this.listeners.delete(callback);
-  }
-
-  private setRecordingState(state: RecordingState): void {
-    this.recordingState = state;
-    this.notifyListeners(state, this.getFormattedElapsedTime());
-  }
-
-  private notifyListeners(state: RecordingState, time: string): void {
-    this.listeners.forEach(callback => callback(state, time));
-  }
-
-  // ==================== Time Calculation ====================
-
-  private getElapsedTime(): number {
-    if (this.recordingStartTime === 0) return 0;
-
-    const now = Date.now();
-    const totalTime = now - this.recordingStartTime;
-    return totalTime - this.totalPausedDuration;
-  }
-
-  private getFormattedElapsedTime(): string {
-    return this.formatTime(this.getElapsedTime());
-  }
-
-  private formatTime(milliseconds: number): string {
-    const totalSeconds = Math.floor(milliseconds / 1000);
+  private formatTime(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
 
-  private startTimeUpdate(): void {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
-    }
-
-    this.updateInterval = setInterval(() => {
-      if (this.recordingState === RecordingState.RECORDING) {
-        this.notifyListeners(
-          RecordingState.RECORDING,
-          this.getFormattedElapsedTime()
-        );
-      }
+  private startTimer(): void {
+    this.stopTimer();
+    this.timerInterval = setInterval(() => {
+      this.updateTimer();
     }, 100);
   }
 
-  private stopTimeUpdate(): void {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
-      this.updateInterval = null;
+  private stopTimer(): void {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
     }
   }
 
-  // ==================== Recording Operations ====================
-
-  public async startRecording(): Promise<void> {
-    if (this.recordingState !== RecordingState.IDLE) {
-      throw new Error(`Cannot start. Current state: ${this.recordingState}`);
-    }
-
+  async startRecording(): Promise<void> {
     try {
-      console.log('[AudioRecorderService] Requesting permission...');
-      const permissionGranted = await requestAudioPermission();
-      if (!permissionGranted) {
-        throw new Error('Microphone permission denied');
+      console.log('[VoiceRecorder] Starting recording');
+
+      if (this.state !== RecordingState.IDLE) {
+        console.log('[VoiceRecorder] Already recording or paused');
+        return;
       }
 
-      this.recordingPath = this.generateRecordingPath();
-      console.log(`[AudioRecorderService] Path: ${this.recordingPath}`);
+      // Start recording using Sound singleton
+      const result = await Sound.startRecorder();
+      this.recordingPath = result;
 
-      await this.ensureDirectoryExists(this.recordingPath);
-
+      // Initialize timing
       this.recordingStartTime = Date.now();
-      this.totalPausedDuration = 0;
-      this.pausedTime = 0;
-      this.setRecordingState(RecordingState.RECORDING);
-      this.startTimeUpdate();
+      this.pausedDuration = 0;
+      this.pauseStartTime = 0;
+      this.currentRecordTime = '0:00';
 
-      console.log('[AudioRecorderService] Starting NitroSound...');
-      const result = await NitroSound.startRecorder(this.recordingPath);
-      this.isRecorderActive = true;
+      // Update state
+      this.state = RecordingState.RECORDING;
 
-      if (!result) {
-        throw new Error('NitroSound returned empty result');
+      // Start timer
+      this.startTimer();
+
+      // Notify subscribers
+      this.notifySubscribers();
+
+      console.log('[VoiceRecorder] Recording started:', result);
+    } catch (error) {
+      console.error('[VoiceRecorder] Failed to start recording:', error);
+      this.state = RecordingState.IDLE;
+      this.notifySubscribers();
+      throw error;
+    }
+  }
+
+  async pauseRecording(): Promise<void> {
+    try {
+      console.log('[VoiceRecorder] Pausing recording');
+
+      if (this.state !== RecordingState.RECORDING) {
+        console.log('[VoiceRecorder] Not recording');
+        return;
       }
 
-      console.log('[AudioRecorderService] ✅ Recording started');
+      await Sound.pauseRecorder();
+
+      this.pauseStartTime = Date.now();
+      this.state = RecordingState.PAUSED;
+      this.stopTimer();
+      this.notifySubscribers();
+
+      console.log('[VoiceRecorder] Recording paused');
     } catch (error) {
-      console.error('[AudioRecorderService] ❌ Start error:', error);
-      this.setRecordingState(RecordingState.ERROR);
-      await this.resetRecorder();
+      console.error('[VoiceRecorder] Failed to pause recording:', error);
       throw error;
     }
   }
 
-  public async pauseRecording(): Promise<void> {
-    if (this.recordingState !== RecordingState.RECORDING) {
-      console.warn(
-        `[AudioRecorderService] Cannot pause. State: ${this.recordingState}`
-      );
-      return;
-    }
-
+  async resumeRecording(): Promise<void> {
     try {
-      console.log('[AudioRecorderService] Pausing...');
-      this.pausedTime = Date.now();
-      this.setRecordingState(RecordingState.PAUSED);
-      this.stopTimeUpdate();
-      console.log('[AudioRecorderService] ⏸ Paused');
+      console.log('[VoiceRecorder] Resuming recording');
+
+      if (this.state !== RecordingState.PAUSED) {
+        console.log('[VoiceRecorder] Not paused');
+        return;
+      }
+
+      await Sound.resumeRecorder();
+
+      if (this.pauseStartTime > 0) {
+        this.pausedDuration += Date.now() - this.pauseStartTime;
+        this.pauseStartTime = 0;
+      }
+
+      this.state = RecordingState.RECORDING;
+      this.startTimer();
+      this.notifySubscribers();
+
+      console.log('[VoiceRecorder] Recording resumed');
     } catch (error) {
-      console.error('[AudioRecorderService] Pause error:', error);
+      console.error('[VoiceRecorder] Failed to resume recording:', error);
       throw error;
     }
   }
 
-  public async resumeRecording(): Promise<void> {
-    if (this.recordingState !== RecordingState.PAUSED) {
-      console.warn(
-        `[AudioRecorderService] Cannot resume. State: ${this.recordingState}`
-      );
-      return;
-    }
-
+  async stopRecording(): Promise<AudioData | null> {
     try {
-      console.log('[AudioRecorderService] Resuming...');
-      this.totalPausedDuration += Date.now() - this.pausedTime;
-      this.setRecordingState(RecordingState.RECORDING);
-      this.startTimeUpdate();
-      console.log('[AudioRecorderService] ▶ Resumed');
-    } catch (error) {
-      console.error('[AudioRecorderService] Resume error:', error);
-      throw error;
-    }
-  }
+      console.log('[VoiceRecorder] Stopping recording');
 
-  public async stopRecording(): Promise<AudioData | null> {
-    if (
-      this.recordingState !== RecordingState.RECORDING &&
-      this.recordingState !== RecordingState.PAUSED
-    ) {
-      console.warn(
-        `[AudioRecorderService] Cannot stop. State: ${this.recordingState}`
-      );
-      return null;
-    }
-
-    try {
-      console.log('[AudioRecorderService] Stopping...');
-
-      const durationMs = this.getElapsedTime();
-      const durationSec = Math.floor(durationMs / 1000);
-
-      // Minimum duration check (500ms)
-      if (durationMs < 500) {
-        console.log('[AudioRecorderService] Too short, cancelling');
-        await this.resetRecorder();
+      if (
+        this.state !== RecordingState.RECORDING &&
+        this.state !== RecordingState.PAUSED
+      ) {
+        console.log('[VoiceRecorder] Not recording');
         return null;
       }
 
-      this.recordingDuration = durationMs;
-      this.setRecordingState(RecordingState.STOPPING);
-      this.stopTimeUpdate();
+      const result = await Sound.stopRecorder();
 
-      let result: string | null = null;
+      this.stopTimer();
 
-      if (this.isRecorderActive) {
-        result = await NitroSound.stopRecorder();
-        this.isRecorderActive = false;
-      } else {
-        result = this.recordingPath;
-      }
+      const duration =
+        (Date.now() - this.recordingStartTime - this.pausedDuration) / 1000;
 
-      if (!result) {
-        console.error('[AudioRecorderService] No result from stopRecorder');
-        await this.resetRecorder();
-        return null;
-      }
+      this.state = RecordingState.STOPPED;
+      this.notifySubscribers();
 
-      // Wait for file write
-      await delay(500);
-
-      let filePath = result.startsWith('file://')
-        ? result.substring(7)
-        : result;
-
-      // Verify file
-      let fileExists = await RNBlobUtil.fs.exists(filePath);
-
-      if (!fileExists && this.recordingPath) {
-        fileExists = await RNBlobUtil.fs.exists(this.recordingPath);
-        if (fileExists) filePath = this.recordingPath;
-      }
-
-      if (!fileExists) {
-        throw new Error('Recording file not found');
-      }
-
-      const fileStats = await RNBlobUtil.fs.stat(filePath);
-      if (fileStats.size === 0) {
-        throw new Error('Recording file is empty');
+      // Get file stats if needed
+      let fileSize = 0;
+      try {
+        const RNBlobUtil = require('react-native-blob-util');
+        const filePath = result.startsWith('file://')
+          ? result.substring(7)
+          : result;
+        const stats = await RNBlobUtil.fs.stat(filePath);
+        fileSize = stats.size || 0;
+      } catch (error) {
+        console.warn('[VoiceRecorder] Could not get file size:', error);
       }
 
       const audioData: AudioData = {
-        uri: `file://${filePath}`,
-        type: 'audio/mp4',
-        name: filePath.split('/').pop() || this.generateUniqueFileName(),
-        duration: durationSec,
-        size: fileStats.size,
+        uri: result.startsWith('file://') ? result : `file://${result}`,
+        duration: Math.round(duration),
+        size: fileSize,
       };
 
-      await this.resetRecorder();
-      console.log('[AudioRecorderService] ✅ Completed:', audioData);
+      this.cleanup();
+
+      console.log('[VoiceRecorder] Recording stopped:', audioData);
+
       return audioData;
     } catch (error) {
-      console.error('[AudioRecorderService] ❌ Stop error:', error);
-      this.setRecordingState(RecordingState.ERROR);
-      await this.resetRecorder();
+      console.error('[VoiceRecorder] Failed to stop recording:', error);
+      this.cleanup();
       return null;
     }
   }
 
-  public async cancelRecording(): Promise<void> {
-    if (
-      this.recordingState !== RecordingState.RECORDING &&
-      this.recordingState !== RecordingState.PAUSED
-    ) {
-      console.warn(
-        `[AudioRecorderService] Cannot cancel. State: ${this.recordingState}`
-      );
-      return;
-    }
-
+  async cancelRecording(): Promise<void> {
     try {
-      console.log('[AudioRecorderService] Cancelling...');
+      console.log('[VoiceRecorder] Cancelling recording');
 
-      if (this.isRecorderActive) {
-        await NitroSound.stopRecorder();
-        this.isRecorderActive = false;
+      if (
+        this.state === RecordingState.RECORDING ||
+        this.state === RecordingState.PAUSED
+      ) {
+        await Sound.stopRecorder();
       }
 
-      if (this.recordingPath) {
-        try {
-          const exists = await RNBlobUtil.fs.exists(this.recordingPath);
-          if (exists) {
-            await RNBlobUtil.fs.unlink(this.recordingPath);
-            console.log('[AudioRecorderService] File deleted');
-          }
-        } catch (deleteError) {
-          console.warn('[AudioRecorderService] Delete error:', deleteError);
-        }
-      }
+      this.cleanup();
 
-      await this.resetRecorder();
-      console.log('[AudioRecorderService] 🗑️ Cancelled');
+      console.log('[VoiceRecorder] Recording cancelled');
     } catch (error) {
-      console.error('[AudioRecorderService] Cancel error:', error);
-      await this.resetRecorder();
+      console.error('[VoiceRecorder] Failed to cancel recording:', error);
+      this.cleanup();
     }
   }
 
-  private async resetRecorder(): Promise<void> {
-    try {
-      this.stopTimeUpdate();
+  private cleanup(): void {
+    this.stopTimer();
+    this.recordingPath = null;
+    this.state = RecordingState.IDLE;
+    this.recordingStartTime = 0;
+    this.pausedDuration = 0;
+    this.pauseStartTime = 0;
+    this.currentRecordTime = '0:00';
+    this.notifySubscribers();
+  }
 
-      if (this.isRecorderActive) {
-        try {
-          await NitroSound.stopRecorder();
-        } catch (error) {
-          console.warn('[AudioRecorderService] Stop during reset:', error);
-        }
-        this.isRecorderActive = false;
-      }
-
-      this.setRecordingState(RecordingState.IDLE);
-      this.recordingPath = null;
-      this.recordingStartTime = 0;
-      this.recordingDuration = 0;
-      this.pausedTime = 0;
-      this.totalPausedDuration = 0;
-      console.log('[AudioRecorderService] 🔄 Reset to IDLE');
-    } catch (error) {
-      console.error('[AudioRecorderService] Reset error:', error);
-      this.recordingState = RecordingState.IDLE;
-      this.isRecorderActive = false;
+  getRecordingDuration(): number {
+    if (this.state === RecordingState.IDLE) {
+      return 0;
     }
+
+    let elapsed = Date.now() - this.recordingStartTime - this.pausedDuration;
+
+    if (this.state === RecordingState.PAUSED && this.pauseStartTime > 0) {
+      elapsed =
+        this.pauseStartTime - this.recordingStartTime - this.pausedDuration;
+    }
+
+    return elapsed;
   }
 
-  // ==================== Public Getters ====================
-
-  public getRecordingState(): RecordingState {
-    return this.recordingState;
+  getState(): RecordingState {
+    return this.state;
   }
 
-  public getRecordingDuration(): number {
-    return this.getElapsedTime();
-  }
-
-  public getFormattedDuration(): string {
-    return this.formatTime(this.getElapsedTime());
-  }
-
-  public isCurrentlyRecording(): boolean {
-    return (
-      this.recordingState === RecordingState.RECORDING ||
-      this.recordingState === RecordingState.PAUSED
-    );
+  getRecordTime(): string {
+    return this.currentRecordTime;
   }
 }
 

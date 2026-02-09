@@ -1,13 +1,13 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
-  Modal,
   StyleSheet,
-  Dimensions,
-  Animated,
+  Modal,
+  TouchableOpacity,
   TouchableWithoutFeedback,
+  Animated,
+  Dimensions,
   Platform,
 } from 'react-native';
 
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   menuContainer: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#1C2C33',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     fontSize: 11,
-    color: '#FFFFFF',
+    color: '#E9EDEF',
     textAlign: 'center',
     fontWeight: '500',
   },
