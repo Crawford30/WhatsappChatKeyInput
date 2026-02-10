@@ -1,11 +1,14 @@
 import { EmojiCategory } from '../types/inputTypes';
+import { StorageService } from '../utils/storage';
+
+const DEFAULT_RECENT_EMOJIS = ['😂', '❤️', '😍', '🔥', '👍', '😊', '🎉', '💯'];
 
 export const EMOJI_CATEGORIES: EmojiCategory[] = [
   {
     id: 'recent',
     name: 'Recent',
     icon: '🕐',
-    emojis: ['😂', '❤️', '😍', '🔥', '👍', '😊', '🎉', '💯'],
+    emojis: DEFAULT_RECENT_EMOJIS,
   },
   {
     id: 'smileys',
@@ -385,12 +388,61 @@ export const EMOJI_CATEGORIES: EmojiCategory[] = [
   },
 ];
 
-export const getRecentEmojis = (): string[] => {
-  // In a real app, this would load from AsyncStorage
-  return EMOJI_CATEGORIES[0].emojis;
+const MAX_RECENT_EMOJIS = 30;
+
+/**
+ * Load recent emojis from storage
+ */
+export const loadRecentEmojis = async (): Promise<string[]> => {
+  try {
+    const stored = await StorageService.getRecentEmojis();
+    return stored.length > 0 ? stored : DEFAULT_RECENT_EMOJIS;
+  } catch (error) {
+    console.error('Failed to load recent emojis:', error);
+    return DEFAULT_RECENT_EMOJIS;
+  }
 };
 
-export const addRecentEmoji = (emoji: string): void => {
-  // In a real app, this would save to AsyncStorage
-  console.log('Adding recent emoji:', emoji);
+/**
+ * Add emoji to recent list and persist
+ */
+export const addRecentEmoji = async (emoji: string): Promise<string[]> => {
+  try {
+    const current = await StorageService.getRecentEmojis();
+
+    // Remove if already exists
+    const filtered = current.filter(e => e !== emoji);
+
+    // Add to front
+    const updated = [emoji, ...filtered].slice(0, MAX_RECENT_EMOJIS);
+
+    // Save to storage
+    await StorageService.saveRecentEmojis(updated);
+
+    return updated;
+  } catch (error) {
+    console.error('Failed to add recent emoji:', error);
+    return [];
+  }
+};
+
+/**
+ * Get category by ID with updated recent emojis
+ */
+export const getCategoryWithRecents = (
+  categoryId: string,
+  recentEmojis: string[]
+): EmojiCategory | undefined => {
+  const category = EMOJI_CATEGORIES.find(cat => cat.id === categoryId);
+
+  if (!category) return undefined;
+
+  if (categoryId === 'recent') {
+    return {
+      ...category,
+      emojis: recentEmojis.length > 0 ? recentEmojis : DEFAULT_RECENT_EMOJIS,
+    };
+  }
+
+  return category;
 };

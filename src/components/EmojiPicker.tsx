@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,14 @@ import {
   StyleSheet,
   Dimensions,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
-import { EMOJI_CATEGORIES, addRecentEmoji } from '../data/emojiData';
+import {
+  EMOJI_CATEGORIES,
+  addRecentEmoji,
+  loadRecentEmojis,
+  getCategoryWithRecents,
+} from '../data/emojiData';
 
 const { width } = Dimensions.get('window');
 const EMOJI_SIZE = width / 8;
@@ -22,14 +28,35 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
   const [selectedCategory, setSelectedCategory] = useState(
     EMOJI_CATEGORIES[0].id
   );
+  const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const currentCategory = EMOJI_CATEGORIES.find(
-    cat => cat.id === selectedCategory
-  );
+  // Load recent emojis on mount
+  useEffect(() => {
+    const loadRecents = async () => {
+      try {
+        setIsLoading(true);
+        const recents = await loadRecentEmojis();
+        setRecentEmojis(recents);
+      } catch (error) {
+        console.error('Failed to load recent emojis:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadRecents();
+  }, []);
 
   const handleEmojiPress = useCallback(
-    (emoji: string) => {
-      addRecentEmoji(emoji);
+    async (emoji: string) => {
+      // Add to recent emojis
+      const updated = await addRecentEmoji(emoji);
+      if (updated.length > 0) {
+        setRecentEmojis(updated);
+      }
+
+      // Notify parent
       onEmojiSelect(emoji);
     },
     [onEmojiSelect]
@@ -63,6 +90,20 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
     [selectedCategory]
   );
 
+  // Get current category with updated recents
+  const currentCategory = getCategoryWithRecents(
+    selectedCategory,
+    recentEmojis
+  );
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#00A884" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Emoji Grid */}
@@ -95,6 +136,12 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0B141A',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#0B141A',
   },
   emojiGrid: {
