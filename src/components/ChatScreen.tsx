@@ -1,17 +1,40 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  View, FlatList, StyleSheet, KeyboardAvoidingView,
-  Platform, Text, TouchableOpacity,
+  View,
+  FlatList,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  Text,
+  TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { ChatInput } from './ChatInput';
-import { VoiceRecorderProvider } from '../context/VoiceRecorderContext';
-import { Message, AudioData } from '../types';
+import { VoiceRecorderProvider } from '../common/VoiceRecorderContext';
+import { Message, AudioData } from '../types/inputTypes';
 
 const INITIAL_MESSAGES: Message[] = [
-  { id: '1', text: 'Hey! How are you?', timestamp: new Date(Date.now() - 3600000), type: 'text' },
-  { id: '2', text: 'Great! Thanks for asking 😊', timestamp: new Date(Date.now() - 3500000), type: 'text' },
-  { id: '3', text: 'What are you up to today?', timestamp: new Date(Date.now() - 3000000), type: 'text' },
+  {
+    id: '1',
+    text: 'Hey! How are you?',
+    timestamp: new Date(Date.now() - 3600000),
+    type: 'text',
+  },
+  {
+    id: '2',
+    text: 'Great! Thanks for asking 😊',
+    timestamp: new Date(Date.now() - 3500000),
+    type: 'text',
+  },
+  {
+    id: '3',
+    text: 'What are you up to today?',
+    timestamp: new Date(Date.now() - 3000000),
+    type: 'text',
+  },
 ];
 
 const formatTime = (d: Date) =>
@@ -32,7 +55,13 @@ const MessageBubble: React.FC<{ item: Message }> = ({ item }) => {
             <View style={bubbleStyles.voiceInfo}>
               <View style={bubbleStyles.waveform}>
                 {Array.from({ length: 20 }, (_, i) => (
-                  <View key={i} style={[bubbleStyles.wBar, { height: 2 + Math.sin(i * 0.8) * 8 + 6 }]} />
+                  <View
+                    key={i}
+                    style={[
+                      bubbleStyles.wBar,
+                      { height: 2 + Math.sin(i * 0.8) * 8 + 6 },
+                    ]}
+                  />
                 ))}
               </View>
               <Text style={bubbleStyles.duration}>{item.duration ?? 0}s</Text>
@@ -63,12 +92,22 @@ const bubbleStyles = StyleSheet.create({
   time: { fontSize: 11, color: '#8696A0', marginTop: 4, alignSelf: 'flex-end' },
   voiceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   playBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#00A884', justifyContent: 'center', alignItems: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#00A884',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   playIcon: { color: '#fff', fontSize: 12, marginLeft: 2 },
   voiceInfo: { flex: 1 },
-  waveform: { flexDirection: 'row', alignItems: 'center', height: 24, gap: 2, marginBottom: 2 },
+  waveform: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 24,
+    gap: 2,
+    marginBottom: 2,
+  },
   wBar: { width: 2.5, backgroundColor: '#8696A0', borderRadius: 1.5 },
   duration: { fontSize: 11, color: '#8696A0' },
 });
@@ -96,12 +135,13 @@ export const ChatScreen: React.FC = () => {
   }, []);
 
   return (
-    <VoiceRecorderProvider onSendAudio={handleSendAudio} maxRecordingDuration={300}>
+    <VoiceRecorderProvider
+      onSendAudio={handleSendAudio}
+      maxRecordingDuration={300}>
       <SafeAreaView style={styles.safe} edges={['top']}>
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity style={styles.backBtn}>
@@ -126,7 +166,10 @@ export const ChatScreen: React.FC = () => {
               data={messages}
               renderItem={({ item }) => <MessageBubble item={item} />}
               keyExtractor={item => item.id}
-              contentContainerStyle={[styles.msgList, { paddingBottom: insets.bottom + 8 }]}
+              contentContainerStyle={[
+                styles.msgList,
+                { paddingBottom: insets.bottom + 8 },
+              ]}
               showsVerticalScrollIndicator={false}
             />
           </View>
