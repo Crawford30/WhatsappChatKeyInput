@@ -7,7 +7,7 @@ import React, {
   useEffect,
 } from 'react';
 import VoiceRecorderService from './VoiceRecorderService';
-import { RecordingState, AudioData } from './VoiceRecorderService';
+import { RecordingState, AudioData } from '../types/inputTypes';
 
 interface VoiceRecorderContextType {
   // Service instance
@@ -70,8 +70,8 @@ export const VoiceRecorderProvider: React.FC<VoiceRecorderProviderProps> = ({
       setRecordTime(time);
 
       // Update duration
-      const duration = serviceRef.current.getRecordingDuration();
-      setRecordingDuration(duration);
+      const duration = serviceRef.current.getFormattedTime();
+      //setRecordingDuration(duration);
     });
 
     return () => {

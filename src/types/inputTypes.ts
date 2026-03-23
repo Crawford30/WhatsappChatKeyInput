@@ -1,8 +1,7 @@
 export enum InputMode {
   TEXT = 'TEXT',
-  PANEL = 'PANEL', // Unified panel for emoji/sticker/gif
+  PANEL = 'PANEL',
   VOICE = 'VOICE',
-  CAMERA = 'CAMERA',
 }
 
 export enum PanelType {
@@ -11,12 +10,21 @@ export enum PanelType {
   STICKER = 'STICKER',
 }
 
+export enum RecordingState {
+  IDLE = 'IDLE',
+  RECORDING = 'RECORDING',
+  PAUSED = 'PAUSED',
+  STOPPING = 'STOPPING',
+  ERROR = 'ERROR',
+}
+
 export interface Message {
   id: string;
   text: string;
   timestamp: Date;
   type: 'text' | 'voice' | 'image';
-  duration?: number; // for voice messages
+  duration?: number;
+  uri?: string;
 }
 
 export interface EmojiCategory {
@@ -39,9 +47,18 @@ export interface StickerPack {
   stickers: Sticker[];
 }
 
-export interface VoiceRecording {
-  isRecording: boolean;
+export interface AudioData {
+  uri: string;
+  type: string;
+  name: string;
   duration: number;
-  amplitude: number[];
-  uri?: string;
+  size: number;
+}
+
+export interface ChatInputProps {
+  onSendMessage: (message: Message) => void;
+  onSendAudio?: (audioData: AudioData) => Promise<void>;
+  placeholder?: string;
+  maxLength?: number;
+  maxRecordingDuration?: number;
 }

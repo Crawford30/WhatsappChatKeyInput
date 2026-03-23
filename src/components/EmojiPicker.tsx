@@ -1,102 +1,33 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  Dimensions,
-  ScrollView,
-  ActivityIndicator,
+  View, Text, TouchableOpacity, FlatList,
+  StyleSheet, Dimensions, ScrollView, ActivityIndicator,
 } from 'react-native';
-import {
-  EMOJI_CATEGORIES,
-  addRecentEmoji,
-  loadRecentEmojis,
-  getCategoryWithRecents,
-} from '../data/emojiData';
+import { EMOJI_CATEGORIES, addRecentEmoji, loadRecentEmojis, getCategoryWithRecents } from '../data/emojiData';
 
 const { width } = Dimensions.get('window');
-const EMOJI_SIZE = width / 8;
-const NUM_COLUMNS = 8;
+const EMOJI_SIZE = Math.floor(width / 8);
 
-interface EmojiPickerProps {
-  onEmojiSelect: (emoji: string) => void;
-}
+interface Props { onEmojiSelect: (emoji: string) => void; }
 
-export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
-  const [selectedCategory, setSelectedCategory] = useState(
-    EMOJI_CATEGORIES[0].id
-  );
-  const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export const EmojiPicker: React.FC<Props> = ({ onEmojiSelect }) => {
+  const [selectedCat, setSelectedCat] = useState(EMOJI_CATEGORIES[0].id);
+  const [recents, setRecents] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Load recent emojis on mount
   useEffect(() => {
-    const loadRecents = async () => {
-      try {
-        setIsLoading(true);
-        const recents = await loadRecentEmojis();
-        setRecentEmojis(recents);
-      } catch (error) {
-        console.error('Failed to load recent emojis:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadRecents();
+    loadRecentEmojis().then(r => { setRecents(r); setLoading(false); });
   }, []);
 
-  const handleEmojiPress = useCallback(
-    async (emoji: string) => {
-      // Add to recent emojis
-      const updated = await addRecentEmoji(emoji);
-      if (updated.length > 0) {
-        setRecentEmojis(updated);
-      }
+  const handleEmojiPress = useCallback(async (emoji: string) => {
+    const updated = await addRecentEmoji(emoji);
+    if (updated.length) setRecents(updated);
+    onEmojiSelect(emoji);
+  }, [onEmojiSelect]);
 
-      // Notify parent
-      onEmojiSelect(emoji);
-    },
-    [onEmojiSelect]
-  );
+  const currentCat = getCategoryWithRecents(selectedCat, recents);
 
-  const renderEmoji = useCallback(
-    ({ item }: { item: string }) => (
-      <TouchableOpacity
-        style={styles.emojiButton}
-        onPress={() => handleEmojiPress(item)}
-        activeOpacity={0.6}>
-        <Text style={styles.emoji}>{item}</Text>
-      </TouchableOpacity>
-    ),
-    [handleEmojiPress]
-  );
-
-  const renderCategoryTab = useCallback(
-    (category: (typeof EMOJI_CATEGORIES)[0]) => (
-      <TouchableOpacity
-        key={category.id}
-        style={[
-          styles.categoryTab,
-          selectedCategory === category.id && styles.categoryTabActive,
-        ]}
-        onPress={() => setSelectedCategory(category.id)}
-        activeOpacity={0.7}>
-        <Text style={styles.categoryIcon}>{category.icon}</Text>
-      </TouchableOpacity>
-    ),
-    [selectedCategory]
-  );
-
-  // Get current category with updated recents
-  const currentCategory = getCategoryWithRecents(
-    selectedCategory,
-    recentEmojis
-  );
-
-  if (isLoading) {
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#00A884" />
@@ -106,27 +37,44 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
 
   return (
     <View style={styles.container}>
-      {/* Emoji Grid */}
       <FlatList
-        data={currentCategory?.emojis || []}
-        renderItem={renderEmoji}
-        keyExtractor={(item, index) => `${selectedCategory}-${index}`}
-        numColumns={NUM_COLUMNS}
-        contentContainerStyle={styles.emojiGrid}
+        data={currentCat?.emojis || []}
+        keyExtractor={(item, i) => `${selectedCat}-${i}`}
+        numColumns={8}
+        contentContainerStyle={styles.grid}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={50}
-        windowSize={10}
+        removeClippedSubviews
+        maxToRenderPerBatch={40}
+        windowSize={8}
         initialNumToRender={40}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.emojiBtn}
+            onPress={() => handleEmojiPress(item)}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.emoji}>{item}</Text>
+          </TouchableOpacity>
+        )}
       />
 
-      {/* Bottom Category Bar */}
+      {/* Category tabs */}
       <View style={styles.bottomBar}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryScrollContent}>
-          {EMOJI_CATEGORIES.map(renderCategoryTab)}
+          contentContainerStyle={styles.catScroll}
+        >
+          {EMOJI_CATEGORIES.map(cat => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[styles.catTab, selectedCat === cat.id && styles.catTabActive]}
+              onPress={() => setSelectedCat(cat.id)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.catIcon}>{cat.icon}</Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
     </View>
@@ -134,51 +82,14 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0B141A',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0B141A',
-  },
-  emojiGrid: {
-    paddingHorizontal: 4,
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  emojiButton: {
-    width: EMOJI_SIZE,
-    height: EMOJI_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emoji: {
-    fontSize: 28,
-  },
-  bottomBar: {
-    borderTopWidth: 1,
-    borderTopColor: '#2A3942',
-    backgroundColor: '#1F2C34',
-  },
-  categoryScrollContent: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    gap: 4,
-  },
-  categoryTab: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  categoryTabActive: {
-    backgroundColor: '#2A3942',
-  },
-  categoryIcon: {
-    fontSize: 24,
-  },
+  container: { flex: 1, backgroundColor: '#0B141A' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0B141A' },
+  grid: { paddingHorizontal: 4, paddingTop: 8, paddingBottom: 8 },
+  emojiBtn: { width: EMOJI_SIZE, height: EMOJI_SIZE, justifyContent: 'center', alignItems: 'center' },
+  emoji: { fontSize: 26 },
+  bottomBar: { borderTopWidth: 1, borderTopColor: '#2A3942', backgroundColor: '#1F2C34' },
+  catScroll: { paddingVertical: 6, paddingHorizontal: 4, gap: 4 },
+  catTab: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
+  catTabActive: { backgroundColor: '#2A3942' },
+  catIcon: { fontSize: 22 },
 });

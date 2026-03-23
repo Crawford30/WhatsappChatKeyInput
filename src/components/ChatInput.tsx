@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -10,118 +9,100 @@ import {
   Animated,
   BackHandler,
   Alert,
+  Text,
 } from 'react-native';
-import { InputMode } from '../types/inputTypes';
-import type { Sticker, Message } from '../types/inputTypes';
+import {
+  InputMode,
+  Sticker,
+  Message,
+  AudioData,
+  RecordingState,
+} from '../types/inputTypes';
 import { UnifiedPanel } from './UnifiedPanel';
-import { VoiceRecorder } from './VoiceRecorder';
+import { VoiceRecordingUI } from './VoiceRecordingUI';
 import { AttachmentMenu } from './AttachmentMenu';
+import { MicButton } from './MicButton';
 import { useVoiceRecorder } from '../common/VoiceRecorderContext';
-import { RecordingState } from '../common/VoiceRecorderService';
+import { useKeyboardManager } from '../hooks/useKeyboardManager';
+import { EmojiSVG } from '../svg/svgIcons';
+import {
+  EmojiIcon,
+  KeyboardIcon,
+  AttachIcon,
+  CameraIcon,
+  SendIcon,
+} from '../svg/svgIcons';
 
-interface ChatInputProps {
+interface Props {
   onSendMessage: (message: Message) => void;
+  placeholder?: string;
+  maxLength?: number;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
-  const [inputMode, setInputMode] = useState<InputMode>(InputMode.TEXT);
+export const ChatInput: React.FC<Props> = ({
+  onSendMessage,
+  placeholder = 'Message',
+  maxLength = 4096,
+}) => {
   const [text, setText] = useState('');
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
+  const [attachMenuVisible, setAttachMenuVisible] = useState(false);
+  const [inputMode, setInputMode] = useState<InputMode>(InputMode.TEXT);
 
   const inputRef = useRef<TextInput>(null);
-  const panelHeightAnim = useRef(new Animated.Value(0)).current;
+
+  const {
+    isKeyboardVisible,
+    isPanelOpen,
+    panelAnim,
+    togglePanel,
+    closePanel,
+    onInputFocus,
+  } = useKeyboardManager();
 
   const {
     recordingState,
     startRecording,
-    handleSendVoiceMessage,
+    stopRecording,
     cancelRecording,
+    handleSendVoiceMessage,
   } = useVoiceRecorder();
 
-  const showPanel = useCallback(() => {
-    Animated.spring(panelHeightAnim, {
-      toValue: 1,
-      useNativeDriver: false,
-      tension: 50,
-      friction: 8,
-    }).start();
-    setInputMode(InputMode.PANEL);
-  }, [panelHeightAnim]);
+  const isActivelyRecording =
+    recordingState === RecordingState.RECORDING ||
+    recordingState === RecordingState.PAUSED;
 
-  const hidePanel = useCallback(() => {
-    Animated.timing(panelHeightAnim, {
-      toValue: 0,
-      duration: 250,
-      useNativeDriver: false,
-    }).start(() => {
-      setInputMode(InputMode.TEXT);
+  // ── Android back-button ──────────────────────────────────────────────────
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (attachMenuVisible) {
+        setAttachMenuVisible(false);
+        return true;
+      }
+      if (isPanelOpen) {
+        closePanel();
+        return true;
+      }
+      return false;
     });
-  }, [panelHeightAnim]);
+    return () => sub.remove();
+  }, [attachMenuVisible, isPanelOpen, closePanel]);
 
-  // Keyboard listeners
-  useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        setKeyboardVisible(true);
-        if (inputMode === InputMode.PANEL) {
-          hidePanel();
-        }
-        if (attachmentMenuVisible) {
-          setAttachmentMenuVisible(false);
-        }
-      }
-    );
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false);
-      }
-    );
-
-    return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
-    };
-  }, [inputMode, hidePanel, attachmentMenuVisible]);
-
-  // Handle Android back button
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      () => {
-        if (attachmentMenuVisible) {
-          setAttachmentMenuVisible(false);
-          return true;
-        }
-        if (inputMode === InputMode.PANEL) {
-          hidePanel();
-          return true;
-        }
-        return false;
-      }
-    );
-
-    return () => backHandler.remove();
-  }, [inputMode, hidePanel, attachmentMenuVisible]);
-
-  const handlePanelToggle = useCallback(() => {
-    if (inputMode === InputMode.PANEL) {
-      hidePanel();
-      setTimeout(() => inputRef.current?.focus(), 100);
+  // ── Panel / keyboard orchestration ──────────────────────────────────────
+  const handleEmojiButtonPress = useCallback(() => {
+    if (isPanelOpen) {
+      closePanel();
+      setTimeout(() => inputRef.current?.focus(), 120);
     } else {
-      Keyboard.dismiss();
-      setTimeout(() => showPanel(), 100);
+      togglePanel();
     }
-  }, [inputMode, hidePanel, showPanel]);
+  }, [isPanelOpen, closePanel, togglePanel]);
 
   const handleTextFocus = useCallback(() => {
-    if (inputMode === InputMode.PANEL) {
-      hidePanel();
-    }
-  }, [inputMode, hidePanel]);
+    onInputFocus();
+    setAttachMenuVisible(false);
+  }, [onInputFocus]);
 
+  // ── Text editing ─────────────────────────────────────────────────────────
   const handleEmojiSelect = useCallback((emoji: string) => {
     setText(prev => prev + emoji);
   }, []);
@@ -129,10 +110,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
   const handleBackspace = useCallback(() => {
     setText(prev => {
       if (!prev) return prev;
-      const chars = Array.from(prev);
-      return chars.slice(0, -1).join('');
+      return Array.from(prev).slice(0, -1).join('');
     });
   }, []);
+
+  // ── Send ─────────────────────────────────────────────────────────────────
+  const handleSendText = useCallback(() => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    onSendMessage({
+      id: Date.now().toString(),
+      text: trimmed,
+      timestamp: new Date(),
+      type: 'text',
+    });
+    setText('');
+  }, [text, onSendMessage]);
 
   const handleStickerSelect = useCallback(
     (sticker: Sticker) => {
@@ -142,41 +135,51 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
         timestamp: new Date(),
         type: 'image',
       });
-      hidePanel();
+      closePanel();
     },
-    [onSendMessage, hidePanel]
+    [onSendMessage, closePanel]
   );
 
-  const handleSendPress = useCallback(() => {
-    if (text.trim()) {
-      onSendMessage({
-        id: Date.now().toString(),
-        text: text.trim(),
-        timestamp: new Date(),
-        type: 'text',
-      });
-      setText('');
-    }
-  }, [text, onSendMessage]);
-
-  const handleVoicePress = useCallback(async () => {
+  // ── Voice ─────────────────────────────────────────────────────────────────
+  const handleVoicePressIn = useCallback(async () => {
     try {
+      // Close panel / keyboard before recording
+      closePanel();
+      Keyboard.dismiss();
       await startRecording();
-    } catch (error) {
-      console.error('Failed to start recording:', error);
+    } catch (err) {
+      console.error('[ChatInput] startRecording:', err);
     }
-  }, [startRecording]);
+  }, [closePanel, startRecording]);
+
+  const handleVoicePressOut = useCallback(async () => {
+    // Only auto-send if still recording (not locked)
+    if (recordingState === RecordingState.RECORDING) {
+      const data = await stopRecording();
+      if (data) {
+        await handleSendVoiceMessage(data);
+        onSendMessage({
+          id: Date.now().toString(),
+          text: 'Voice message',
+          timestamp: new Date(),
+          type: 'voice',
+          duration: data.duration,
+          uri: data.uri,
+        });
+      }
+    }
+  }, [recordingState, stopRecording, handleSendVoiceMessage, onSendMessage]);
 
   const handleVoiceComplete = useCallback(
-    async (audioData: any) => {
+    async (audioData: AudioData) => {
       await handleSendVoiceMessage(audioData);
-
       onSendMessage({
         id: Date.now().toString(),
         text: 'Voice message',
         timestamp: new Date(),
         type: 'voice',
         duration: audioData.duration,
+        uri: audioData.uri,
       });
     },
     [handleSendVoiceMessage, onSendMessage]
@@ -186,240 +189,194 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     cancelRecording();
   }, [cancelRecording]);
 
-  const handleAttachmentPress = useCallback(() => {
+  // ── Attachment handlers ───────────────────────────────────────────────────
+  const handleAttachPress = useCallback(() => {
     Keyboard.dismiss();
-    if (inputMode === InputMode.PANEL) {
-      hidePanel();
-    }
-    setTimeout(() => {
-      setAttachmentMenuVisible(true);
-    }, 100);
-  }, [inputMode, hidePanel]);
+    closePanel();
+    setTimeout(() => setAttachMenuVisible(true), 100);
+  }, [closePanel]);
 
-  const handleCloseAttachmentMenu = useCallback(() => {
-    setAttachmentMenuVisible(false);
-  }, []);
+  const attachHandler = (name: string) => () =>
+    Alert.alert(name, `${name} picker coming soon`);
 
-  const handleDocumentPress = useCallback(() => {
-    Alert.alert('Document', 'Document picker will open here');
-  }, []);
-
-  const handleCameraPress = useCallback(() => {
-    Alert.alert('Camera', 'Camera will open here');
-  }, []);
-
-  const handleGalleryPress = useCallback(() => {
-    Alert.alert('Gallery', 'Gallery picker will open here');
-  }, []);
-
-  const handleAudioPress = useCallback(() => {
-    Alert.alert('Audio', 'Audio picker will open here');
-  }, []);
-
-  const handleLocationPress = useCallback(() => {
-    Alert.alert('Location', 'Location picker will open here');
-  }, []);
-
-  const handleContactPress = useCallback(() => {
-    Alert.alert('Contact', 'Contact picker will open here');
-  }, []);
-
-  const handlePollPress = useCallback(() => {
-    Alert.alert('Poll', 'Poll creator will open here');
-  }, []);
-
-  const handleEventPress = useCallback(() => {
-    Alert.alert('Event', 'Event creator will open here');
-  }, []);
-
-  const panelHeight = panelHeightAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 350],
-  });
-
-  const isRecording =
-    recordingState === RecordingState.RECORDING ||
-    recordingState === RecordingState.PAUSED;
+  // ── Render ────────────────────────────────────────────────────────────────
+  const hasText = text.trim().length > 0;
+  const showEmojiIcon = isPanelOpen;
 
   return (
-    <View style={styles.container}>
-      {/* Voice Recording Overlay - ONLY show when actually recording */}
-      {isRecording && (
-        <VoiceRecorder
-          onCancel={handleVoiceCancel}
+    <View style={styles.root}>
+      {/* ── Voice Recording overlay ── */}
+      {isActivelyRecording && (
+        <VoiceRecordingUI
           onComplete={handleVoiceComplete}
+          onCancel={handleVoiceCancel}
         />
       )}
 
-      {/* Input Bar - ONLY show when NOT recording */}
-      {!isRecording && (
+      {/* ── Input bar (hidden while recording in slide mode) ── */}
+      {!isActivelyRecording && (
         <View style={styles.inputBar}>
-          <View style={styles.inputWrapper}>
-            {/* Emoji Button */}
-            <TouchableOpacity
-              style={styles.emojiButton}
-              onPress={handlePanelToggle}
-              activeOpacity={0.6}>
-              <Text style={styles.emojiIcon}>
-                {inputMode === InputMode.PANEL ? '⌨️' : '😊'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Text Input */}
-            <TextInput
-              ref={inputRef}
-              style={styles.textInput}
-              placeholder="Message"
-              placeholderTextColor="#8696A0"
-              value={text}
-              onChangeText={setText}
-              onFocus={handleTextFocus}
-              multiline
-              maxLength={1000}
-            />
-
-            {/* Attachment Buttons */}
-            {!text && (
-              <View style={styles.attachmentButtons}>
-                <TouchableOpacity
-                  style={styles.attachButton}
-                  onPress={handleAttachmentPress}
-                  activeOpacity={0.6}>
-                  <Text style={styles.attachIcon}>📎</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.attachButton}
-                  onPress={handleCameraPress}
-                  activeOpacity={0.6}>
-                  <Text style={styles.attachIcon}>📷</Text>
-                </TouchableOpacity>
-              </View>
+          {/* Left: emoji / keyboard toggle */}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={handleEmojiButtonPress}
+            activeOpacity={0.6}>
+            {showEmojiIcon ? (
+              <KeyboardIcon size={24} color="#8696A0" />
+            ) : (
+              <EmojiIcon size={24} color="#8696A0" />
             )}
-          </View>
+          </TouchableOpacity>
 
-          {/* Send or Voice Button */}
-          {text.trim() ? (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.sendButton]}
-              onPress={handleSendPress}
-              activeOpacity={0.6}>
-              <Text style={styles.sendIcon}>➤</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleVoicePress}
-              activeOpacity={0.6}>
-              <Text style={styles.actionIcon}>🎤</Text>
-            </TouchableOpacity>
+          {/* Text input */}
+          <TextInput
+            ref={inputRef}
+            style={styles.textInput}
+            placeholder={placeholder}
+            placeholderTextColor="#8696A0"
+            value={text}
+            onChangeText={setText}
+            onFocus={handleTextFocus}
+            multiline
+            maxLength={maxLength}
+          />
+
+          {/* Attachment icons (only when no text) */}
+          {!hasText && (
+            <View style={styles.attachRow}>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={handleAttachPress}
+                activeOpacity={0.6}>
+                <AttachIcon size={24} color="#8696A0" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={attachHandler('Camera')}
+                activeOpacity={0.6}>
+                <CameraIcon size={24} color="#8696A0" />
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       )}
 
-      {/* Unified Panel (Emoji/GIF/Sticker) */}
-      {!keyboardVisible && !isRecording && (
-        <Animated.View style={[styles.panel, { height: panelHeight }]}>
-          {inputMode === InputMode.PANEL && (
+      {/* ── Right action button ── */}
+      {!isActivelyRecording && (
+        <View style={styles.actionWrap}>
+          {hasText ? (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.sendBtn]}
+              onPress={handleSendText}
+              activeOpacity={0.7}>
+              <SendIcon size={20} fill="#fff" />
+            </TouchableOpacity>
+          ) : (
+            <MicButton
+              onPressIn={handleVoicePressIn}
+              onPressOut={handleVoicePressOut}
+              isRecording={false}
+            />
+          )}
+        </View>
+      )}
+
+      {/* ── Emoji / GIF / Sticker panel ── */}
+      {!isActivelyRecording && (
+        <Animated.View style={[styles.panel, { height: panelAnim }]}>
+          {isPanelOpen && (
             <UnifiedPanel
               onEmojiSelect={handleEmojiSelect}
               onStickerSelect={handleStickerSelect}
               onBackspace={handleBackspace}
-              hasText={text.length > 0}
-              onClose={hidePanel}
+              hasText={hasText}
+              onClose={closePanel}
             />
           )}
         </Animated.View>
       )}
 
-      {/* Attachment Menu */}
+      {/* ── Attachment sheet ── */}
       <AttachmentMenu
-        visible={attachmentMenuVisible}
-        onClose={handleCloseAttachmentMenu}
-        onDocumentPress={handleDocumentPress}
-        onCameraPress={handleCameraPress}
-        onGalleryPress={handleGalleryPress}
-        onAudioPress={handleAudioPress}
-        onLocationPress={handleLocationPress}
-        onContactPress={handleContactPress}
-        onPollPress={handlePollPress}
-        onEventPress={handleEventPress}
+        visible={attachMenuVisible}
+        onClose={() => setAttachMenuVisible(false)}
+        onDocumentPress={attachHandler('Document')}
+        onCameraPress={attachHandler('Camera')}
+        onGalleryPress={attachHandler('Gallery')}
+        onAudioPress={attachHandler('Audio')}
+        onLocationPress={attachHandler('Location')}
+        onContactPress={attachHandler('Contact')}
+        onPollPress={attachHandler('Poll')}
+        onEventPress={attachHandler('Event')}
       />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#0B141A',
-  },
+  root: { backgroundColor: '#0B141A' },
+
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
     backgroundColor: '#1F2C34',
-  },
-  inputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2A3942',
-    borderRadius: 22,
+    borderRadius: 24,
+    marginHorizontal: 8,
+    marginVertical: 6,
     paddingLeft: 4,
     paddingRight: 4,
-    marginRight: 8,
-    minHeight: 44,
+    minHeight: 48,
     maxHeight: 120,
   },
-  emojiButton: {
-    width: 40,
-    height: 40,
+
+  iconBtn: {
+    width: 42,
+    height: 42,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emojiIcon: {
-    fontSize: 24,
-  },
+
   textInput: {
     flex: 1,
-    fontSize: 17,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    fontSize: 16,
     color: '#E9EDEF',
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    paddingHorizontal: 4,
     maxHeight: 100,
   },
-  attachmentButtons: {
+
+  attachRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  attachButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+
+  actionWrap: {
+    position: 'absolute',
+    right: 8,
+    bottom: 6,
+    width: 48,
+    height: 48,
   },
-  attachIcon: {
-    fontSize: 22,
-  },
-  actionButton: {
+
+  actionBtn: {
     width: 48,
     height: 48,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#00A884',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: { elevation: 6 },
+    }),
   },
-  sendButton: {
-    backgroundColor: '#00A884',
-  },
-  actionIcon: {
-    fontSize: 24,
-  },
-  sendIcon: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
+
+  sendBtn: { backgroundColor: '#00A884' },
+
   panel: {
     overflow: 'hidden',
     backgroundColor: '#1F2C34',

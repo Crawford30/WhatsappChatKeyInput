@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useVoiceRecorder } from '../common/VoiceRecorderContext';
-import { RecordingState } from '../common/VoiceRecorderService';
+import { RecordingState } from '../types/inputTypes';
 
 const { width } = Dimensions.get('window');
 const CANCEL_THRESHOLD = -120; // Slide left to cancel

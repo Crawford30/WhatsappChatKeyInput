@@ -2913,6 +2913,7 @@ __metadata:
     react: 19.1.1
     react-native: 0.82.0
     react-native-blob-util: ^0.19.11
+    react-native-haptic-feedback: ^2.3.4
     react-native-nitro-modules: ^0.33.7
     react-native-nitro-sound: ^0.2.10
     react-native-permissions: ^5.3.0
@@ -7907,6 +7908,15 @@ __metadata:
     react: "*"
     react-native: "*"
   checksum: 13f18e4fdca5b93236f309734aad625164c6fb5bf7191d1dc2fe4fdb385961c6802418968026fb2012ad01bda0ac092dbbcf3639d1efcd4a6361064d5b6957d0
+  languageName: node
+  linkType: hard
+
+"react-native-haptic-feedback@npm:^2.3.4":
+  version: 2.3.4
+  resolution: "react-native-haptic-feedback@npm:2.3.4"
+  peerDependencies:
+    react-native: ">=0.60.0"
+  checksum: 72d20b49f47e44c8b1aef9c2360469bd25c47b5426e0f07b2c42c57e8465ea8147f4bbce06131ed7305bc59bbde5600838ccd556b496fe4140ab16ba8ed13261
   languageName: node
   linkType: hard
 

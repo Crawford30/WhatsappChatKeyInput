@@ -13,8 +13,8 @@ import {
   AppStateStatus,
 } from 'react-native';
 import { useVoiceRecorder } from './VoiceRecorderContext';
-import { RecordingState } from './VoiceRecorderService';
 import { MicrophoneSVG } from '../svg/svgIcons';
+import { RecordingState } from '../types/inputTypes';
 
 // Safe Haptic Feedback Implementation
 const SafeHapticFeedback = {
