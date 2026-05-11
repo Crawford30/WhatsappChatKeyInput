@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   inputBar: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center', // ← was 'flex-end'
     backgroundColor: '#1F2C34',
     borderRadius: 24,
     paddingLeft: 4,
@@ -345,14 +345,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  // inputBar: {
+  //   flex: 1,
+  //   flexDirection: 'row',
+  //   alignItems: 'flex-end',
+  //   backgroundColor: '#1F2C34',
+  //   borderRadius: 24,
+  //   paddingLeft: 4,
+  //   paddingRight: 4,
+  //   minHeight: 48,
+  //   maxHeight: 120,
+  // },
+
+  // iconBtn: {
+  //   width: 42,
+  //   height: 42,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  // },
+
   textInput: {
     flex: 1,
     fontSize: 16,
     color: '#E9EDEF',
-    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    paddingVertical: 10, // ← uniform vertical padding
     paddingHorizontal: 4,
     maxHeight: 100,
+    textAlignVertical: 'center', // ← Android: keeps caret centred when single-line
   },
+
+  // textInput: {
+  //   flex: 1,
+  //   fontSize: 16,
+  //   color: '#E9EDEF',
+  //   paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+  //   paddingHorizontal: 4,
+  //   maxHeight: 100,
+  // },
 
   attachRow: {
     flexDirection: 'row',
@@ -365,7 +394,15 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    alignSelf: 'flex-end', // ← stays pinned to bottom when input grows tall
   },
+
+  // actionWrap: {
+  //   width: 48,
+  //   height: 48,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  // },
 
   actionBtn: {
     width: 48,
