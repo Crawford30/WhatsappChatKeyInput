@@ -22,9 +22,10 @@ export interface Message {
   id: string;
   text: string;
   timestamp: Date;
-  type: 'text' | 'voice' | 'image';
+  type: 'text' | 'voice' | 'image' | 'sticker' | 'gif';
   duration?: number;
   uri?: string;
+  stickerUri?: string;
 }
 
 export interface EmojiCategory {
@@ -37,13 +38,15 @@ export interface EmojiCategory {
 export interface Sticker {
   id: string;
   image: string;
-  pack: string;
+  pack?: string;
+  label?: string;
 }
 
 export interface StickerPack {
   id: string;
   name: string;
   icon: string;
+  iconIsImage?: boolean;
   stickers: Sticker[];
 }
 
