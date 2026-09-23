@@ -36,7 +36,8 @@
     "start": "react-native start",
     "test": "jest",
     "build": "bob build",
-    "prepack": "bob build"
+    "prepack": "bob build",
+    "release": "./release.sh"
   },
   "dependencies": {
     "color": "^4.2.3"
