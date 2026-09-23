@@ -27,6 +27,8 @@ export type {
   AttachmentKind,
   AttachmentPickers,
   Message,
+  RecordedAudio,
   Sticker,
   StickerPack,
+  VoiceRecorderAdapter,
 } from './types/inputTypes';

@@ -308,3 +308,104 @@ describe('defaultPickers.openCamera on Android', () => {
     expect(request).not.toHaveBeenCalled();
   });
 });
+
+describe('recorder adapter', () => {
+  // Minimal touch history so PanResponder's gesture maths works
+  const touch = (x: number) => ({
+    nativeEvent: { touches: [{}], changedTouches: [{}], pageX: x, pageY: 0 },
+    touchHistory: {
+      numberActiveTouches: 1,
+      indexOfSingleActiveTouch: 0,
+      mostRecentTimeStamp: Date.now(),
+      touchBank: [
+        {
+          touchActive: true,
+          startPageX: 0,
+          startPageY: 0,
+          startTimeStamp: 0,
+          currentPageX: x,
+          currentPageY: 0,
+          currentTimeStamp: Date.now(),
+          previousPageX: 0,
+          previousPageY: 0,
+          previousTimeStamp: 0,
+        },
+      ],
+    },
+  });
+
+  const setup = async () => {
+    const recorder = {
+      start: jest.fn(async () => {}),
+      stop: jest.fn(async () => ({
+        uri: 'file://voice.m4a',
+        duration: 3,
+        mimeType: 'audio/m4a',
+        name: 'voice.m4a',
+      })),
+      cancel: jest.fn(async () => {}),
+    };
+    const onSendMessage = jest.fn();
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = ReactTestRenderer.create(
+        <SafeAreaProvider initialMetrics={metrics}>
+          <ChatInput
+            onSendMessage={onSendMessage}
+            recipientName="Test"
+            recorder={recorder}
+          />
+        </SafeAreaProvider>
+      );
+    });
+    const mic = () =>
+      renderer.root.find(
+        n =>
+          n.props.accessibilityLabel === 'Hold to record' &&
+          typeof n.type === 'string'
+      );
+    return { recorder, onSendMessage, mic };
+  };
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  test('hold, wait and release sends the real recording', async () => {
+    const { recorder, onSendMessage, mic } = await setup();
+    await act(async () => mic().props.onResponderGrant(touch(0)));
+    expect(recorder.start).toHaveBeenCalled();
+    await act(async () => jest.advanceTimersByTime(3000));
+    await act(async () => mic().props.onResponderRelease(touch(0)));
+
+    expect(recorder.stop).toHaveBeenCalled();
+    expect(onSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'voice',
+        duration: 3,
+        attachment: expect.objectContaining({
+          kind: 'audio',
+          uri: 'file://voice.m4a',
+        }),
+      })
+    );
+  });
+
+  test('a quick tap cancels instead of sending', async () => {
+    const { recorder, onSendMessage, mic } = await setup();
+    await act(async () => mic().props.onResponderGrant(touch(0)));
+    await act(async () => mic().props.onResponderRelease(touch(0)));
+    expect(recorder.cancel).toHaveBeenCalled();
+    expect(recorder.stop).not.toHaveBeenCalled();
+    expect(onSendMessage).not.toHaveBeenCalled();
+  });
+
+  test('sliding left past the threshold cancels', async () => {
+    const { recorder, onSendMessage, mic } = await setup();
+    await act(async () => mic().props.onResponderGrant(touch(0)));
+    await act(async () => jest.advanceTimersByTime(3000));
+    await act(async () => mic().props.onResponderMove(touch(-200)));
+    await act(async () => mic().props.onResponderRelease(touch(-200)));
+    expect(recorder.cancel).toHaveBeenCalled();
+    expect(onSendMessage).not.toHaveBeenCalled();
+  });
+});

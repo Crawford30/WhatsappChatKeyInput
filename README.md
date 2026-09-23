@@ -106,7 +106,7 @@ Put `ChatInput` last in a full-height column. It sizes the space under itself fo
 | `text` | `text` |
 | `attachment` | `attachment` (`kind`: `image` / `document` / `audio`, `uri`, `name`, `mimeType`, `size`, `width`, `height`), `text` = caption, `viewOnce` |
 | `sticker` | `sticker` (`emoji` or `image`) |
-| `voice` | `duration` (built-in recorder only) |
+| `voice` | `duration` (seconds), `attachment` (`kind: 'audio'`) when a `recorder` is given |
 
 Picked photos open in the photo editor first. Unedited photos are sent as the original file. Edited photos arrive as a new JPEG.
 
@@ -121,7 +121,8 @@ Picked photos open in the photo editor first. Unedited photos are sent as the or
 | `onSelectionChange`, `onFocus` | Forwarded to the `TextInput` |
 | `header` | Rendered inside the input above the text, e.g. a reply preview |
 | `pickers` | `{ openCamera, openGallery, pickDocument, pickAudio }`, each returning `Promise<Attachment[]>` (`[]` when cancelled). Without it the clip and camera buttons are hidden |
-| `voiceButton` | Replaces the mic button while the input is empty. **The built-in recorder only simulates recording**, so pass a real one |
+| `recorder` | Your audio recorder, `{ start, stop, cancel }` (see below). The input keeps its own recording UI (timer, waveform, slide to cancel) and calls these. **Without it, recording is only simulated** |
+| `voiceButton` | Replaces the whole mic button and its recording UI while the input is empty |
 | `stickers` | Show the sticker tab (default `true`) |
 | `placeholder` | Default `"Message"` |
 
@@ -135,6 +136,24 @@ const pickers: AttachmentPickers = {
   pickAudio: async () => toAttachments(await myFilePicker({ audio: true })),
 };
 ```
+
+### Using your own recorder
+
+```tsx
+const recorder: VoiceRecorderAdapter = {
+  start: () => myRecorder.start(),
+  // Resolve to null if nothing usable was recorded
+  stop: async () => {
+    const file = await myRecorder.stop();
+    return file && { uri: file.uri, duration: file.seconds, mimeType: 'audio/m4a' };
+  },
+  cancel: () => myRecorder.cancel(),
+};
+
+<ChatInput recorder={recorder} onSendMessage={send} recipientName="Stephen" />;
+```
+
+Hold the mic to record, release to send, slide left to cancel. Holds under a second are cancelled. The recording arrives as a `voice` message with `duration` and an `audio` `attachment`.
 
 ### Other exports
 

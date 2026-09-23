@@ -52,7 +52,7 @@ import {UserSVG} from '../../assests/svg/icons/UserSVG';
 import GenericBottomSheet, {
   useBottomSheet,
 } from '../../components/common/GenericBottomSheet';
-import VoiceRecorder from '../../components/media/VoiceRecorderView';
+import {useVoiceRecorder} from '../../components/common/VoiceRecorderContext';
 import {ChatAvatar} from '../../components/messages/ChatAvatar';
 import {EditMessageView} from '../../components/messages/EditMessageView';
 import {
@@ -194,6 +194,24 @@ export const MessagesScreen = ({navigation, route}: any) => {
   const [mentions, setMentions] = useState<{[key: string]: string}>({});
   const [cursorPosition, setCursorPosition] = useState(0);
   const {getData, storeData} = useStorage();
+
+  // ChatInput shows the recording UI; this records the actual audio
+  const {startRecording, stopRecording, cancelRecording} = useVoiceRecorder();
+  const recorder = {
+    start: startRecording,
+    stop: async () => {
+      const audio = await stopRecording();
+      return (
+        audio && {
+          uri: audio.uri,
+          duration: audio.duration,
+          mimeType: audio.type,
+          name: audio.name,
+        }
+      );
+    },
+    cancel: cancelRecording,
+  };
 
   // Message Templates State
   const [showTemplates, setShowTemplates] = useState(false);
@@ -470,6 +488,16 @@ export const MessagesScreen = ({navigation, route}: any) => {
       case 'sticker':
         // Built-in stickers are emoji; send them as the message text
         if (sent.sticker?.emoji) handleSendMessage({message: sent.sticker.emoji});
+        break;
+      case 'voice':
+        if (sent.attachment) {
+          handleSendAudioMessage({
+            uri: sent.attachment.uri,
+            type: sent.attachment.mimeType || 'audio/m4a',
+            name: sent.attachment.name,
+            duration: sent.duration ?? 0,
+          });
+        }
         break;
     }
   };
@@ -1164,13 +1192,7 @@ export const MessagesScreen = ({navigation, route}: any) => {
                 style={{marginHorizontal: 10, marginTop: 10}}
               />
             }
-            voiceButton={
-              <VoiceRecorder
-                onSend={handleSendAudioMessage}
-                onCancel={() => {}}
-                maxRecordingDuration={300}
-              />
-            }
+            recorder={recorder}
           />
         ) : (
           <View style={[styles.whiteBg, styles.p15]}>

@@ -6,6 +6,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  Alert,
   Animated,
   PanResponder,
   StyleSheet,
@@ -30,6 +31,7 @@ import type {
   AttachmentPickers,
   Message,
   Sticker,
+  VoiceRecorderAdapter,
 } from '../types/inputTypes';
 import { AttachmentMenu } from './AttachmentMenu';
 import { EditedImage, MediaEditor } from './media/MediaEditor';
@@ -56,9 +58,11 @@ export interface ChatInputProps {
   /** Attachment sources; the clip and camera buttons hide without them */
   pickers?: AttachmentPickers;
   /**
-   * Replaces the built-in mic button while the input is empty. The built-in
-   * recorder only simulates recording, so pass your real recorder here.
+   * Real audio recorder behind the hold-to-record mic. Without it (and
+   * without `voiceButton`) recording is only simulated.
    */
+  recorder?: VoiceRecorderAdapter;
+  /** Replaces the whole mic button (and its recording UI) while empty */
   voiceButton?: React.ReactNode;
   /** Show the sticker tab in the emoji panel (default true) */
   stickers?: boolean;
@@ -75,6 +79,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   placeholder = 'Message',
   header,
   pickers,
+  recorder,
   voiceButton,
   stickers = true,
 }) => {
@@ -197,25 +202,80 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Hold the mic to record, release to send, slide left to cancel. The
   // responder is created once, so it reads the latest handlers from a ref.
   const slideX = useRef(new Animated.Value(0)).current;
+  // The app's recorder can change between renders (its callbacks often
+  // depend on its own state), so always call the latest one
+  const recorderRef = useRef(recorder);
+  recorderRef.current = recorder;
+  // Resolves to whether the real recorder actually started
+  const recorderStarted = useRef<Promise<boolean> | null>(null);
+
   const recordingHandlers = useRef({
-    startRecording,
+    startRecording: () => {},
     finishRecording: (_send: boolean) => {},
   });
   recordingHandlers.current = {
-    startRecording,
-    finishRecording: (send: boolean) => {
-      if (send && duration > 0) {
-        onSendMessage({
-          id: Date.now().toString(),
-          text: 'Voice message',
-          timestamp: new Date(),
-          type: 'voice',
-          duration,
-        });
-      }
+    startRecording: () => {
+      startRecording();
+      const current = recorderRef.current;
+      recorderStarted.current = current
+        ? current.start().then(
+            () => true,
+            error => {
+              cancelRecording();
+              Alert.alert(
+                'Could not start recording',
+                error instanceof Error ? error.message : undefined
+              );
+              return false;
+            }
+          )
+        : null;
+    },
+    finishRecording: async (send: boolean) => {
+      slideX.setValue(0);
+      // The on-screen timer ticks each second; under 1s counts as a tap
+      const longEnough = send && duration > 0;
       if (send) stopRecording();
       else cancelRecording();
-      slideX.setValue(0);
+
+      const started = recorderStarted.current;
+      recorderStarted.current = null;
+      if (!started) {
+        // Simulated recording (no recorder given)
+        if (longEnough) {
+          onSendMessage({
+            id: Date.now().toString(),
+            text: 'Voice message',
+            timestamp: new Date(),
+            type: 'voice',
+            duration,
+          });
+        }
+        return;
+      }
+
+      if (!(await started)) return;
+      const current = recorderRef.current;
+      if (!current) return;
+      if (!longEnough) {
+        await current.cancel();
+        return;
+      }
+      const audio = await current.stop();
+      if (!audio) return;
+      onSendMessage({
+        id: Date.now().toString(),
+        text: '',
+        timestamp: new Date(),
+        type: 'voice',
+        duration: audio.duration || duration,
+        attachment: {
+          kind: 'audio',
+          uri: audio.uri,
+          name: audio.name || `voice-${Date.now()}.m4a`,
+          mimeType: audio.mimeType,
+        },
+      });
     },
   };
 

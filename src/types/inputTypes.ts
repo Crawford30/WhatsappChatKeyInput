@@ -30,6 +30,26 @@ export interface AttachmentPickers {
   pickAudio: () => Promise<Attachment[]>;
 }
 
+/** A finished recording from a VoiceRecorderAdapter */
+export interface RecordedAudio {
+  uri: string;
+  /** Seconds */
+  duration: number;
+  mimeType?: string | null;
+  name?: string;
+}
+
+/**
+ * Plug a real audio recorder into ChatInput's hold-to-record button. The
+ * input keeps its own recording UI (timer, waveform, slide to cancel) and
+ * calls these; `stop` resolves to null when nothing usable was recorded.
+ */
+export interface VoiceRecorderAdapter {
+  start: () => Promise<void>;
+  stop: () => Promise<RecordedAudio | null>;
+  cancel: () => Promise<void>;
+}
+
 export interface Message {
   id: string;
   text: string;
