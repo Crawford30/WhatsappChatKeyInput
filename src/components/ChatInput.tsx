@@ -15,9 +15,11 @@ import { EmojiSVG } from '../assets/svg/EmojiSVG';
 import { KeyboardSVG } from '../assets/svg/KeyboardSVG';
 import { MicSVG } from '../assets/svg/MicSVG';
 import { SendSVG } from '../assets/svg/SendSVG';
+import { useAttachmentPicker } from '../hooks/useAttachmentPicker';
 import { useEmojiKeyboard } from '../hooks/useEmojiKeyboard';
 import { useVoiceRecording } from '../hooks/useInputHook';
-import type { Message, Sticker } from '../types/inputTypes';
+import type { Attachment, Message, Sticker } from '../types/inputTypes';
+import { AttachmentMenu } from './AttachmentMenu';
 import { EmojiKeyboard } from './EmojiKeyboard';
 import { VoiceRecorder } from './VoiceRecorder';
 
@@ -26,15 +28,9 @@ const ICON_SIZE = 24;
 
 interface ChatInputProps {
   onSendMessage: (message: Message) => void;
-  onAttachPress?: () => void;
-  onCameraPress?: () => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({
-  onSendMessage,
-  onAttachPress,
-  onCameraPress,
-}) => {
+export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
   const [text, setText] = useState('');
   const inputRef = useRef<TextInput>(null);
   const hasText = text.trim().length > 0;
@@ -64,6 +60,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     });
     setText('');
   }, [hasText, text, onSendMessage]);
+
+  // Each picked file becomes its own message; typed text goes as the caption
+  // of the first one, like WhatsApp
+  const handleAttachments = useCallback(
+    (attachments: Attachment[]) => {
+      const caption = text.trim();
+      attachments.forEach((attachment, index) => {
+        onSendMessage({
+          id: `${Date.now()}-${index}`,
+          text: index === 0 ? caption : '',
+          timestamp: new Date(),
+          type: 'attachment',
+          attachment,
+        });
+      });
+      if (caption) setText('');
+    },
+    [text, onSendMessage]
+  );
+
+  const picker = useAttachmentPicker(handleAttachments);
+
+  // Close the menu first so it doesn't linger behind the system picker
+  const fromMenu = (action: () => void) => () => {
+    emojiKeyboard.closePanel();
+    action();
+  };
 
   const handleStickerSelect = useCallback(
     (sticker: Sticker) => {
@@ -170,7 +193,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               <TouchableOpacity
                 accessibilityLabel="Attach"
                 style={[themeStyles.flexCenter, styles.iconButton]}
-                onPress={onAttachPress}
+                onPress={emojiKeyboard.toggleAttachMenu}
                 activeOpacity={0.6}>
                 <AttachSVG
                   width={ICON_SIZE}
@@ -182,7 +205,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <TouchableOpacity
                   accessibilityLabel="Camera"
                   style={[themeStyles.flexCenter, styles.iconButton]}
-                  onPress={onCameraPress}
+                  onPress={picker.openCamera}
                   activeOpacity={0.6}>
                   <CameraSVG width={22} height={22} color={iconColor} />
                 </TouchableOpacity>
@@ -223,10 +246,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         )}
       </View>
 
-      <EmojiKeyboard
-        {...emojiKeyboard.panelProps}
-        onStickerSelect={handleStickerSelect}
-      />
+      {emojiKeyboard.activePanel === 'attach' ? (
+        <AttachmentMenu
+          height={emojiKeyboard.panelProps.height}
+          bottomInset={emojiKeyboard.panelProps.bottomInset}
+          onDocument={fromMenu(picker.pickDocument)}
+          onCamera={fromMenu(picker.openCamera)}
+          onGallery={fromMenu(picker.openGallery)}
+          onAudio={fromMenu(picker.pickAudio)}
+        />
+      ) : (
+        <EmojiKeyboard
+          {...emojiKeyboard.panelProps}
+          onStickerSelect={handleStickerSelect}
+        />
+      )}
     </View>
   );
 };

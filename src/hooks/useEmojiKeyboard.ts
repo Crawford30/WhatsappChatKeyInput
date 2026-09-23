@@ -27,6 +27,11 @@ const DEFAULT_PANEL_RATIO = 0.38;
 // iOS with a hardware keyboard never shows the software one after focus
 const KEYBOARD_FALLBACK_MS = 400;
 
+// Height of the attachment menu content (excluding the bottom inset)
+export const ATTACH_PANEL_HEIGHT = 132;
+
+export type PanelKind = 'emoji' | 'attach';
+
 const animateLayout = (event?: KeyboardEvent) => {
   const duration = event?.duration || 220;
   const type =
@@ -45,7 +50,8 @@ interface UseEmojiKeyboardOptions {
 }
 
 /**
- * WhatsApp-style switching between the system keyboard and the emoji panel.
+ * WhatsApp-style switching between the system keyboard and the panels that
+ * replace it (emoji keyboard, attachment menu).
  *
  * The panel takes the height of the last shown keyboard so the input bar stays
  * put when switching. On iOS the keyboard overlays the window, so the bottom
@@ -59,7 +65,7 @@ export const useEmojiKeyboard = ({
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
 
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<PanelKind | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
@@ -99,7 +105,7 @@ export const useEmojiKeyboard = ({
       setKeyboardVisible(false);
     };
     // Close the panel only once the keyboard fully covers it
-    const onDidShow = () => setPanelOpen(false);
+    const onDidShow = () => setActivePanel(null);
 
     const subscriptions = isIOS
       ? [
@@ -121,27 +127,27 @@ export const useEmojiKeyboard = ({
     };
   }, []);
 
-  const closeEmojiKeyboard = useCallback(() => {
+  const closePanel = useCallback(() => {
     if (!keyboardVisibleRef.current) animateLayout();
-    setPanelOpen(false);
+    setActivePanel(null);
   }, []);
 
   // Android back button closes the panel before leaving the screen
   useEffect(() => {
-    if (!panelOpen) return;
+    if (!activePanel) return;
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
-        closeEmojiKeyboard();
+        closePanel();
         return true;
       }
     );
     return () => subscription.remove();
-  }, [panelOpen, closeEmojiKeyboard]);
+  }, [activePanel, closePanel]);
 
-  const openEmojiKeyboard = useCallback(() => {
+  const openPanel = useCallback((kind: PanelKind) => {
     if (!keyboardVisibleRef.current) animateLayout();
-    setPanelOpen(true);
+    setActivePanel(kind);
     Keyboard.dismiss();
   }, []);
 
@@ -149,14 +155,14 @@ export const useEmojiKeyboard = ({
   const handleInputFocus = useCallback(() => {
     if (!isIOS) {
       // adjustResize is about to shrink the window; drop the panel first
-      setPanelOpen(false);
+      setActivePanel(null);
       return;
     }
     if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
     fallbackTimer.current = setTimeout(() => {
-      if (!keyboardVisibleRef.current) closeEmojiKeyboard();
+      if (!keyboardVisibleRef.current) closePanel();
     }, KEYBOARD_FALLBACK_MS);
-  }, [closeEmojiKeyboard]);
+  }, [closePanel]);
 
   const openSystemKeyboard = useCallback(() => {
     const { start, end } = selectionRef.current;
@@ -164,12 +170,19 @@ export const useEmojiKeyboard = ({
     inputRef.current?.setSelection(start, end);
   }, [inputRef]);
 
-  const isEmojiMode = panelOpen && !keyboardVisible;
+  const isEmojiMode = activePanel === 'emoji' && !keyboardVisible;
+
+  const openEmojiKeyboard = useCallback(() => openPanel('emoji'), [openPanel]);
 
   const toggleEmojiKeyboard = useCallback(() => {
     if (isEmojiMode) openSystemKeyboard();
     else openEmojiKeyboard();
   }, [isEmojiMode, openSystemKeyboard, openEmojiKeyboard]);
+
+  const toggleAttachMenu = useCallback(() => {
+    if (activePanel === 'attach') closePanel();
+    else openPanel('attach');
+  }, [activePanel, closePanel, openPanel]);
 
   const applyEdit = useCallback(
     ({ text, cursor }: TextEdit) => {
@@ -205,23 +218,28 @@ export const useEmojiKeyboard = ({
 
   // What sits under the input bar: the panel, the space the iOS keyboard
   // covers, or just the home-indicator inset
-  const bottomSpace = panelOpen
-    ? panelHeight
-    : keyboardVisible && isIOS
-    ? keyboardHeight
-    : insets.bottom;
+  const bottomSpace =
+    activePanel === 'emoji'
+      ? panelHeight
+      : activePanel === 'attach'
+      ? ATTACH_PANEL_HEIGHT + insets.bottom
+      : keyboardVisible && isIOS
+      ? keyboardHeight
+      : insets.bottom;
 
   return {
+    activePanel,
     isEmojiMode,
     toggleEmojiKeyboard,
+    toggleAttachMenu,
     openEmojiKeyboard,
-    closeEmojiKeyboard,
+    closePanel,
     insertEmoji,
     backspace,
     handleInputFocus,
     handleSelectionChange,
     panelProps: {
-      visible: panelOpen,
+      visible: activePanel === 'emoji',
       height: bottomSpace,
       bottomInset: insets.bottom,
       onEmojiSelect: insertEmoji,

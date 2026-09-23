@@ -7,23 +7,48 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colorAlpha, dimWhite, primaryColor } from '../assets/style/Colors';
+import {
+  configSecondary,
+  dimWhite,
+  primaryColor,
+} from '../assets/style/Colors';
+import { BackButtonSVG } from '../assets/svg/BackButtonSVG';
 import { MoreSVG } from '../assets/svg/MoreSVG';
 import { ChatInput } from '../components/ChatInput';
+import { MessageBubble } from '../components/MessageBubble';
 import type { Message } from '../types/inputTypes';
+
+const HOUR = 3600000;
+
+const CHAT_TITLE = 'WhatsApp Chat';
+
+const initials = (name: string) =>
+  name
+    .split(' ')
+    .map(word => word[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
 export const ChatScreen: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: 'Hey! How are you?',
-      timestamp: new Date(Date.now() - 3600000),
+      text: 'Hello',
+      timestamp: new Date(Date.now() - 24 * HOUR),
       type: 'text',
+      fromMe: false,
     },
     {
       id: '2',
+      text: 'Hey! How are you?',
+      timestamp: new Date(Date.now() - HOUR),
+      type: 'text',
+    },
+    {
+      id: '3',
       text: 'Great! Thanks for asking 😊',
-      timestamp: new Date(Date.now() - 3500000),
+      timestamp: new Date(Date.now() - 0.9 * HOUR),
       type: 'text',
     },
   ]);
@@ -46,54 +71,31 @@ export const ChatScreen: React.FC = () => {
     }
   }, [messages.length, scrollToBottom]);
 
-  const renderMessage = useCallback(({ item }: { item: Message }) => {
-    const isVoice = item.type === 'voice';
-    const isSticker = item.type === 'image';
-
-    return (
-      <View style={styles.messageContainer}>
-        <View style={styles.messageBubble}>
-          {isVoice ? (
-            <View style={styles.voiceMessage}>
-              <Text style={styles.voiceIcon}>🎤</Text>
-              <Text style={styles.messageText}>
-                Voice message ({item.duration}s)
-              </Text>
-            </View>
-          ) : isSticker ? (
-            <View style={styles.stickerMessage}>
-              <Text style={styles.messageText}>{item.text}</Text>
-            </View>
-          ) : (
-            <Text style={styles.messageText}>{item.text}</Text>
-          )}
-          <Text style={styles.timestamp}>
-            {item.timestamp.toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
-        </View>
-      </View>
-    );
-  }, []);
-
-  const renderHeader = useCallback(
-    () => (
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>WhatsApp Chat</Text>
-          <Text style={styles.headerSubtitle}>online</Text>
-        </View>
-        <TouchableOpacity style={styles.menuButton}>
-          <MoreSVG width={22} height={22} color="white" />
-        </TouchableOpacity>
-      </View>
+  const renderMessage = useCallback(
+    ({ item, index }: { item: Message; index: number }) => (
+      <MessageBubble message={item} prevMessage={messages[index - 1]} />
     ),
-    []
+    [messages]
+  );
+
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity style={styles.headerButton}>
+        <BackButtonSVG width={24} height={24} />
+      </TouchableOpacity>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{initials(CHAT_TITLE)}</Text>
+      </View>
+      <View style={styles.headerInfo}>
+        <Text numberOfLines={1} style={styles.headerTitle}>
+          {CHAT_TITLE}
+        </Text>
+        <Text style={styles.headerSubtitle}>online</Text>
+      </View>
+      <TouchableOpacity style={styles.headerButton}>
+        <MoreSVG width={22} height={22} color="black" />
+      </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -121,88 +123,56 @@ export const ChatScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: primaryColor,
+    backgroundColor: 'white',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    backgroundColor: primaryColor,
+    height: 60,
+    paddingHorizontal: 4,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
   },
-  backButton: {
-    width: 40,
-    height: 40,
+  headerButton: {
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backIcon: {
-    fontSize: 28,
-    color: '#FFFFFF',
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginLeft: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: primaryColor,
+  },
+  avatarText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
   headerInfo: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 10,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: 'black',
   },
   headerSubtitle: {
-    fontSize: 13,
-    color: colorAlpha('#ffffff').shade80,
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    fontSize: 12,
+    color: configSecondary,
   },
   chatContainer: {
     flex: 1,
     backgroundColor: dimWhite,
   },
   messageList: {
-    paddingHorizontal: 12,
-    paddingTop: 12,
+    paddingTop: 4,
     paddingBottom: 8,
-  },
-  messageContainer: {
-    marginBottom: 12,
-    alignItems: 'flex-end',
-  },
-  messageBubble: {
-    backgroundColor: colorAlpha(primaryColor).shade15,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    maxWidth: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
-  },
-  messageText: {
-    fontSize: 16,
-    color: '#000',
-    marginBottom: 4,
-  },
-  timestamp: {
-    fontSize: 11,
-    color: '#667781',
-    alignSelf: 'flex-end',
-  },
-  voiceMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  voiceIcon: {
-    fontSize: 20,
-  },
-  stickerMessage: {
-    backgroundColor: 'transparent',
   },
 });

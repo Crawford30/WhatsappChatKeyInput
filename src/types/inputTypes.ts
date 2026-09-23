@@ -6,12 +6,26 @@ export enum InputMode {
   CAMERA = 'CAMERA',
 }
 
+export type AttachmentKind = 'image' | 'document' | 'audio';
+
+export interface Attachment {
+  kind: AttachmentKind;
+  uri: string;
+  name: string;
+  size?: number | null;
+  mimeType?: string | null;
+  width?: number;
+  height?: number;
+}
+
 export interface Message {
   id: string;
   text: string;
   timestamp: Date;
-  type: 'text' | 'voice' | 'image';
+  type: 'text' | 'voice' | 'image' | 'attachment';
   duration?: number; // for voice messages
+  attachment?: Attachment;
+  fromMe?: boolean; // defaults to true (sent from this device)
 }
 
 export interface EmojiCategory {

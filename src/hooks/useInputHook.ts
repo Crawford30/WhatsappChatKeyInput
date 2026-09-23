@@ -26,11 +26,11 @@ export const useKeyboard = () => {
 
     const showSubscription = Keyboard.addListener(
       showEvent,
-      handleKeyboardShow,
+      handleKeyboardShow
     );
     const hideSubscription = Keyboard.addListener(
       hideEvent,
-      handleKeyboardHide,
+      handleKeyboardHide
     );
 
     return () => {
@@ -47,7 +47,7 @@ export const useKeyboard = () => {
  */
 export const useAnimatedPanel = (
   initialHeight: number = 0,
-  targetHeight: number = 350,
+  targetHeight: number = 350
 ) => {
   const heightAnim = useRef(new Animated.Value(initialHeight)).current;
   const [isVisible, setIsVisible] = useState(false);
@@ -148,7 +148,7 @@ export const useInputMode = <T extends string>(initialMode: T) => {
       previousMode.current = mode;
       setMode(newMode);
     },
-    [mode],
+    [mode]
   );
 
   const revertMode = useCallback(() => {
@@ -190,7 +190,7 @@ export const useDebounce = <T>(value: T, delay: number = 500): T => {
  */
 export const useRecentItems = <T>(
   storageKey: string,
-  maxItems: number = 20,
+  maxItems: number = 20
 ) => {
   const [recentItems, setRecentItems] = useState<T[]>([]);
 
@@ -207,7 +207,7 @@ export const useRecentItems = <T>(
         return updated;
       });
     },
-    [maxItems, storageKey],
+    [maxItems, storageKey]
   );
 
   const loadRecentItems = useCallback(async () => {
