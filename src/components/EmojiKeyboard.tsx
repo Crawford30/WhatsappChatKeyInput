@@ -18,8 +18,7 @@ const BACKSPACE_REPEAT_MS = 70;
 type Tab = 'emoji' | 'sticker';
 
 export interface EmojiKeyboardProps {
-  visible: boolean;
-  /** Height of the whole area under the input bar */
+  /** Panel height, normally the last keyboard height */
   height: number;
   bottomInset: number;
   onEmojiSelect: (emoji: string) => void;
@@ -28,12 +27,8 @@ export interface EmojiKeyboardProps {
   onStickerSelect?: (sticker: Sticker) => void;
 }
 
-/**
- * Panel that replaces the system keyboard. When hidden it still renders the
- * reserved space (iOS keyboard / safe-area inset) so the input bar sits right.
- */
+/** Panel that replaces the system keyboard: emoji grid and stickers */
 export const EmojiKeyboard: React.FC<EmojiKeyboardProps> = ({
-  visible,
   height,
   bottomInset,
   onEmojiSelect,
@@ -54,8 +49,6 @@ export const EmojiKeyboard: React.FC<EmojiKeyboardProps> = ({
   }, [onBackspace, stopRepeat]);
 
   useEffect(() => stopRepeat, [stopRepeat]);
-
-  if (!visible) return <View style={{ height }} />;
 
   const renderTab = (
     id: Tab,

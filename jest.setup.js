@@ -15,3 +15,13 @@ jest.mock('@react-native-documents/picker', () => ({
 jest.mock('react-native-view-shot', () => ({
   captureRef: jest.fn(async () => 'file://captured.jpg'),
 }));
+
+jest.mock('react-native-reanimated', () =>
+  require('react-native-reanimated/mock')
+);
+jest.mock('react-native-keyboard-controller', () =>
+  require('react-native-keyboard-controller/jest')
+);
+jest.mock('react-native-worklets', () =>
+  require('react-native-worklets/lib/module/mock')
+);

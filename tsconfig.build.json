@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "exclude": [
+    "src/screens",
+    "src/assets/style/Theme.ts",
+    "src/assets/style/index.ts",
+    "src/assets/svg/GenericSwitch.tsx",
+    "src/assets/svg/index.ts"
+  ]
+}

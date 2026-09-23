@@ -46,12 +46,12 @@ test('emoji panel inserts, deletes and toggles back to the keyboard', async () =
   const input = () => root.findByType(TextInput);
   const panel = () => root.findByType(EmojiKeyboard);
 
-  expect(panel().props.visible).toBe(false);
-  expect(panel().props.height).toBe(34); // just the home-indicator inset
+  expect(root.findAllByType(EmojiKeyboard)).toHaveLength(0);
 
   await act(async () => byLabel(root, 'Show emoji').props.onPress());
   expect(dismiss).toHaveBeenCalled();
-  expect(panel().props.visible).toBe(true);
+  // Takes a keyboard-like height before any keyboard has been measured
+  expect(panel().props.height).toBeGreaterThan(200);
   expect(byLabel(root, 'Show keyboard')).toBeTruthy();
 
   await act(async () => panel().props.onEmojiSelect('😂'));

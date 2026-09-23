@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Reanimated from 'react-native-reanimated';
 import { configSecondary, primaryColor } from '../assets/style/Colors';
 import { styles as themeStyles } from '../assets/style/Styles';
 import { AttachSVG } from '../assets/svg/AttachSVG';
@@ -338,21 +339,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         )}
       </View>
 
-      {emojiKeyboard.activePanel === 'attach' && pickers ? (
-        <AttachmentMenu
-          height={emojiKeyboard.panelProps.height}
-          bottomInset={emojiKeyboard.panelProps.bottomInset}
-          onDocument={fromMenu(pickers.pickDocument)}
-          onCamera={fromMenu(pickers.openCamera)}
-          onGallery={fromMenu(pickers.openGallery)}
-          onAudio={fromMenu(pickers.pickAudio)}
-        />
-      ) : (
-        <EmojiKeyboard
-          {...emojiKeyboard.panelProps}
-          onStickerSelect={stickers ? handleStickerSelect : undefined}
-        />
-      )}
+      {/* Keyboard / panel space; panels hang from its top edge so they move
+          with the input bar */}
+      <Reanimated.View
+        style={[styles.bottomArea, emojiKeyboard.bottomAreaStyle]}>
+        {emojiKeyboard.activePanel === 'attach' && pickers && (
+          <AttachmentMenu
+            height={emojiKeyboard.panelProps.height}
+            bottomInset={emojiKeyboard.panelProps.bottomInset}
+            onDocument={fromMenu(pickers.pickDocument)}
+            onCamera={fromMenu(pickers.openCamera)}
+            onGallery={fromMenu(pickers.openGallery)}
+            onAudio={fromMenu(pickers.pickAudio)}
+          />
+        )}
+        {emojiKeyboard.activePanel === 'emoji' && (
+          <EmojiKeyboard
+            {...emojiKeyboard.panelProps}
+            onStickerSelect={stickers ? handleStickerSelect : undefined}
+          />
+        )}
+      </Reanimated.View>
 
       {editingImages.length > 0 && (
         <MediaEditor
@@ -411,5 +418,8 @@ const styles = StyleSheet.create({
   },
   sendIcon: {
     marginLeft: 3,
+  },
+  bottomArea: {
+    overflow: 'hidden',
   },
 });
