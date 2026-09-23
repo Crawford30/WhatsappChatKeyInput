@@ -20,6 +20,7 @@ import { useEmojiKeyboard } from '../hooks/useEmojiKeyboard';
 import { useVoiceRecording } from '../hooks/useInputHook';
 import type { Attachment, Message, Sticker } from '../types/inputTypes';
 import { AttachmentMenu } from './AttachmentMenu';
+import { EditedImage, MediaEditor } from './media/MediaEditor';
 import { EmojiKeyboard } from './EmojiKeyboard';
 import { VoiceRecorder } from './VoiceRecorder';
 
@@ -28,9 +29,14 @@ const ICON_SIZE = 24;
 
 interface ChatInputProps {
   onSendMessage: (message: Message) => void;
+  /** Shown on the photo editor's send row, like WhatsApp */
+  recipientName: string;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({
+  onSendMessage,
+  recipientName,
+}) => {
   const [text, setText] = useState('');
   const inputRef = useRef<TextInput>(null);
   const hasText = text.trim().length > 0;
@@ -61,10 +67,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
     setText('');
   }, [hasText, text, onSendMessage]);
 
-  // Each picked file becomes its own message; typed text goes as the caption
-  // of the first one, like WhatsApp
+  // Photos go through the editor first; documents and audio send straight
+  // away with any typed text as the caption of the first one
+  const [editingImages, setEditingImages] = useState<Attachment[]>([]);
+
   const handleAttachments = useCallback(
     (attachments: Attachment[]) => {
+      const images = attachments.filter(a => a.kind === 'image');
+      if (images.length) {
+        setEditingImages(images);
+        return;
+      }
       const caption = text.trim();
       attachments.forEach((attachment, index) => {
         onSendMessage({
@@ -78,6 +91,24 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
       if (caption) setText('');
     },
     [text, onSendMessage]
+  );
+
+  const handleEditedImages = useCallback(
+    (items: EditedImage[], viewOnce: boolean) => {
+      items.forEach(({ attachment, caption }, index) => {
+        onSendMessage({
+          id: `${Date.now()}-${index}`,
+          text: caption,
+          timestamp: new Date(),
+          type: 'attachment',
+          attachment,
+          viewOnce,
+        });
+      });
+      setEditingImages([]);
+      setText('');
+    },
+    [onSendMessage]
   );
 
   const picker = useAttachmentPicker(handleAttachments);
@@ -259,6 +290,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
         <EmojiKeyboard
           {...emojiKeyboard.panelProps}
           onStickerSelect={handleStickerSelect}
+        />
+      )}
+
+      {editingImages.length > 0 && (
+        <MediaEditor
+          images={editingImages}
+          initialCaption={text}
+          recipientName={recipientName}
+          onClose={() => setEditingImages([])}
+          onSend={handleEditedImages}
         />
       )}
     </View>

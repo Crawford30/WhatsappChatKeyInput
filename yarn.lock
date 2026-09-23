@@ -3082,6 +3082,7 @@ __metadata:
     react-native-safe-area-context: ^5.6.2
     react-native-svg: ^15.11.1
     react-native-svg-transformer: ^1.5.0
+    react-native-view-shot: ^6.0.1
     react-test-renderer: 19.1.1
     typescript: ^5.8.3
   languageName: unknown
@@ -8018,6 +8019,22 @@ __metadata:
     react: "*"
     react-native: "*"
   checksum: 78f5aa54150be40075af77bea0d01f0f25c942bb3a8114c25386426f6af114d3602e7ccae94da4ba6ff0f85f6087b544c7067ab3415dd600924995c730aa4a60
+  languageName: node
+  linkType: hard
+
+"react-native-view-shot@npm:^6.0.1":
+  version: 6.0.1
+  resolution: "react-native-view-shot@npm:6.0.1"
+  peerDependencies:
+    html2canvas-pro: ^2.0.0
+    react: ">=18.0.0"
+    react-native: ">=0.80.0"
+  peerDependenciesMeta:
+    html2canvas-pro:
+      optional: true
+    react-native:
+      optional: true
+  checksum: b5b44d7c7fb2add5c3f72d36cb2836b2952e2a7a02e90db80f98b39d5b6689c6e178ab024258de13a2a7c2ea3242292316bd83e933c8784e459829f9a7e3820e
   languageName: node
   linkType: hard
 

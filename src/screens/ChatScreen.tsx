@@ -16,6 +16,7 @@ import { BackButtonSVG } from '../assets/svg/BackButtonSVG';
 import { MoreSVG } from '../assets/svg/MoreSVG';
 import { ChatInput } from '../components/ChatInput';
 import { MessageBubble } from '../components/MessageBubble';
+import { MediaViewer } from '../components/media/MediaViewer';
 import type { Message } from '../types/inputTypes';
 
 const HOUR = 3600000;
@@ -53,6 +54,7 @@ export const ChatScreen: React.FC = () => {
     },
   ]);
 
+  const [viewing, setViewing] = useState<Message | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
@@ -71,11 +73,28 @@ export const ChatScreen: React.FC = () => {
     }
   }, [messages.length, scrollToBottom]);
 
+  // View-once photos can be opened a single time
+  const openMedia = useCallback((message: Message) => {
+    if (message.attachment?.kind !== 'image') return;
+    setViewing(message);
+    if (message.viewOnce) {
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === message.id ? { ...m, viewOnceOpened: true } : m
+        )
+      );
+    }
+  }, []);
+
   const renderMessage = useCallback(
     ({ item, index }: { item: Message; index: number }) => (
-      <MessageBubble message={item} prevMessage={messages[index - 1]} />
+      <MessageBubble
+        message={item}
+        prevMessage={messages[index - 1]}
+        onOpenMedia={openMedia}
+      />
     ),
-    [messages]
+    [messages, openMedia]
   );
 
   const renderHeader = () => (
@@ -114,8 +133,17 @@ export const ChatScreen: React.FC = () => {
           // Keep the latest message visible when the keyboard or panel opens
           onLayout={() => scrollToBottom(false)}
         />
-        <ChatInput onSendMessage={handleSendMessage} />
+        <ChatInput
+          onSendMessage={handleSendMessage}
+          recipientName={CHAT_TITLE}
+        />
       </View>
+      <MediaViewer
+        uri={viewing?.attachment?.uri ?? null}
+        caption={viewing?.text}
+        viewOnce={viewing?.viewOnce}
+        onClose={() => setViewing(null)}
+      />
     </View>
   );
 };

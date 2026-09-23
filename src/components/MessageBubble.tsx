@@ -1,11 +1,16 @@
 import React, { memo } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { colorAlpha, configSecondary } from '../assets/style/Colors';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  colorAlpha,
+  configSecondary,
+  primaryColor,
+} from '../assets/style/Colors';
 import { styles as themeStyles } from '../assets/style/Styles';
 import { DocumentSVG } from '../assets/svg/DocumentSVG';
 import { DoubleTickSVG } from '../assets/svg/DoubleTickSVG';
 import { HeadphonesSVG } from '../assets/svg/HeadphonesSVG';
 import { MicSVG } from '../assets/svg/MicSVG';
+import { ViewOnceSVG } from '../assets/svg/ViewOnceSVG';
 import { formatDate, formatDuration } from '../Helpers/helper';
 import type { Attachment, Message } from '../types/inputTypes';
 import { BUBBLE_PRIMARY_COLOR } from '../utils/colors';
@@ -39,21 +44,57 @@ const fileLabel = ({ name, mimeType, size }: Attachment) => {
     .join(' · ');
 };
 
-const AttachmentView = ({ attachment }: { attachment: Attachment }) => {
+const ViewOnceChip = ({
+  opened,
+  onPress,
+}: {
+  opened?: boolean;
+  onPress?: () => void;
+}) => (
+  <TouchableOpacity
+    accessibilityLabel={opened ? 'Opened view once photo' : 'View once photo'}
+    disabled={opened || !onPress}
+    onPress={onPress}
+    style={[themeStyles.flexRow, themeStyles.flexNullCenter, styles.viewOnce]}>
+    <ViewOnceSVG
+      width={22}
+      height={22}
+      filled={!opened}
+      color={opened ? MUTED : primaryColor}
+    />
+    <Text style={[styles.text, opened && styles.viewOnceOpened]}>
+      {opened ? 'Opened' : 'Photo'}
+    </Text>
+  </TouchableOpacity>
+);
+
+const AttachmentView = ({
+  attachment,
+  onPress,
+}: {
+  attachment: Attachment;
+  onPress?: () => void;
+}) => {
   if (attachment.kind === 'image') {
     const ratio =
       attachment.width && attachment.height
         ? attachment.height / attachment.width
         : 1;
     return (
-      <Image
-        source={{ uri: attachment.uri }}
-        style={[
-          styles.image,
-          { height: Math.min(Math.max(IMAGE_WIDTH * ratio, 120), 320) },
-        ]}
-        resizeMode="cover"
-      />
+      <TouchableOpacity
+        accessibilityLabel="Open photo"
+        disabled={!onPress}
+        onPress={onPress}
+        activeOpacity={0.85}>
+        <Image
+          source={{ uri: attachment.uri }}
+          style={[
+            styles.image,
+            { height: Math.min(Math.max(IMAGE_WIDTH * ratio, 120), 320) },
+          ]}
+          resizeMode="cover"
+        />
+      </TouchableOpacity>
     );
   }
 
@@ -81,6 +122,7 @@ const AttachmentView = ({ attachment }: { attachment: Attachment }) => {
 interface MessageBubbleProps {
   message: Message;
   prevMessage?: Message;
+  onOpenMedia?: (message: Message) => void;
 }
 
 /**
@@ -88,7 +130,7 @@ interface MessageBubbleProps {
  * of a group, date pill when the day changes, time + ticks for sent messages
  */
 export const MessageBubble = memo(
-  ({ message, prevMessage }: MessageBubbleProps) => {
+  ({ message, prevMessage, onOpenMedia }: MessageBubbleProps) => {
     const fromMe = message.fromMe !== false;
     const newDay =
       !prevMessage || !isSameDay(prevMessage.timestamp, message.timestamp);
@@ -113,9 +155,18 @@ export const MessageBubble = memo(
       }
       return (
         <>
-          {message.attachment && (
-            <AttachmentView attachment={message.attachment} />
-          )}
+          {message.attachment &&
+            (message.viewOnce ? (
+              <ViewOnceChip
+                opened={message.viewOnceOpened}
+                onPress={onOpenMedia && (() => onOpenMedia(message))}
+              />
+            ) : (
+              <AttachmentView
+                attachment={message.attachment}
+                onPress={onOpenMedia && (() => onOpenMedia(message))}
+              />
+            ))}
           {!!message.text && <Text style={styles.text}>{message.text}</Text>}
         </>
       );
@@ -140,7 +191,7 @@ export const MessageBubble = memo(
             style={[
               styles.bubble,
               { backgroundColor: bubbleColor },
-              message.attachment && styles.bubbleWithMedia,
+              message.attachment && !message.viewOnce && styles.bubbleWithMedia,
               firstInGroup &&
                 (fromMe ? styles.bubbleMineFirst : styles.bubbleTheirsFirst),
               !firstInGroup &&
@@ -254,6 +305,15 @@ const styles = StyleSheet.create({
   time: {
     fontSize: 11,
     color: MUTED,
+  },
+  viewOnce: {
+    gap: 6,
+    paddingVertical: 4,
+    paddingRight: 24,
+  },
+  viewOnceOpened: {
+    color: MUTED,
+    fontStyle: 'italic',
   },
   image: {
     width: IMAGE_WIDTH,

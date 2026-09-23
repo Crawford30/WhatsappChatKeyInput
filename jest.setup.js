@@ -11,3 +11,7 @@ jest.mock('@react-native-documents/picker', () => ({
   errorCodes: { OPERATION_CANCELED: 'OPERATION_CANCELED' },
   isErrorWithCode: () => false,
 }));
+
+jest.mock('react-native-view-shot', () => ({
+  captureRef: jest.fn(async () => 'file://captured.jpg'),
+}));

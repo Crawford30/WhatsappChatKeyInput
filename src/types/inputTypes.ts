@@ -26,6 +26,8 @@ export interface Message {
   duration?: number; // for voice messages
   attachment?: Attachment;
   fromMe?: boolean; // defaults to true (sent from this device)
+  viewOnce?: boolean;
+  viewOnceOpened?: boolean;
 }
 
 export interface EmojiCategory {

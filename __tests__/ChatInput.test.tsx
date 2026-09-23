@@ -1,5 +1,6 @@
 import React from 'react';
-import { Keyboard, TextInput } from 'react-native';
+import { Image, Keyboard, TextInput } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ChatInput } from '../src/components/ChatInput';
@@ -7,6 +8,7 @@ import { EmojiKeyboard } from '../src/components/EmojiKeyboard';
 import { AttachmentMenu } from '../src/components/AttachmentMenu';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { pick } from '@react-native-documents/picker';
+import { MediaEditor } from '../src/components/media/MediaEditor';
 
 const metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -24,7 +26,7 @@ const render = async (onSendMessage = jest.fn()) => {
   await act(async () => {
     renderer = ReactTestRenderer.create(
       <SafeAreaProvider initialMetrics={metrics}>
-        <ChatInput onSendMessage={onSendMessage} />
+        <ChatInput onSendMessage={onSendMessage} recipientName="Test" />
       </SafeAreaProvider>
     );
   });
@@ -102,7 +104,7 @@ test('clip opens the attachment menu and each option launches its picker', async
   expect(menus()).toHaveLength(0);
 });
 
-test('camera icon opens the camera and sends the photo', async () => {
+test('camera photo opens the editor, which sends it with caption and view once', async () => {
   (launchCamera as jest.Mock).mockResolvedValueOnce({
     assets: [
       {
@@ -115,24 +117,79 @@ test('camera icon opens the camera and sends the photo', async () => {
   });
   const onSendMessage = jest.fn();
   const root = await render(onSendMessage);
-  const input = () => root.findByType(TextInput);
 
-  await act(async () => input().props.onChangeText('look'));
-  // Camera icon hides while typing (as in WhatsApp); clear to show it
-  expect(
-    root.findAll(n => n.props.accessibilityLabel === 'Camera')
-  ).toHaveLength(0);
-  await act(async () => input().props.onChangeText(''));
   await act(async () => byLabel(root, 'Camera').props.onPress());
-
   expect(launchCamera).toHaveBeenCalled();
+  expect(onSendMessage).not.toHaveBeenCalled(); // editor first, like WhatsApp
+
+  const editor = root.findByType(MediaEditor);
+  // The test renderer has no layout pass; give the canvas area a size
+  const stage = editor.findByProps({ testID: 'media-editor-stage' });
+  await act(async () =>
+    stage.props.onLayout({
+      nativeEvent: { layout: { width: 360, height: 600 } },
+    })
+  );
+
+  const caption = editor.find(
+    n =>
+      n.props.placeholder === 'Add a caption...' && typeof n.type !== 'string'
+  );
+  await act(async () => caption.props.onChangeText('Sunset'));
+  await act(async () => byLabel(editor, 'View once off').props.onPress());
+  await act(async () => byLabel(editor, 'Send').props.onPress());
+
+  // No pixel edits, so the original full-quality file is sent
   expect(onSendMessage).toHaveBeenCalledWith(
     expect.objectContaining({
       type: 'attachment',
+      text: 'Sunset',
+      viewOnce: true,
       attachment: expect.objectContaining({
         kind: 'image',
         uri: 'file://photo.jpg',
       }),
+    })
+  );
+  expect(root.findAllByType(MediaEditor)).toHaveLength(0);
+});
+
+test('an edited photo is flattened with view-shot before sending', async () => {
+  (launchImageLibrary as jest.Mock).mockResolvedValueOnce({
+    assets: [
+      { uri: 'file://a.jpg', fileName: 'a.jpg', width: 400, height: 300 },
+    ],
+  });
+  const onSendMessage = jest.fn();
+  const root = await render(onSendMessage);
+
+  await act(async () => byLabel(root, 'Attach').props.onPress());
+  await act(async () => byLabel(root, 'Gallery').props.onPress());
+  const editor = root.findByType(MediaEditor);
+  await act(async () =>
+    editor
+      .findByProps({ testID: 'media-editor-stage' })
+      .props.onLayout({ nativeEvent: { layout: { width: 360, height: 600 } } })
+  );
+  // Simulate the canvas image finishing loading
+  await act(async () =>
+    editor
+      .findByType(Image)
+      .props.onLoad({ nativeEvent: { source: { width: 400, height: 300 } } })
+  );
+
+  await act(async () => byLabel(editor, 'Text').props.onPress());
+  const textInput = editor.find(
+    n => n.props.placeholder === 'Type something' && typeof n.type !== 'string'
+  );
+  await act(async () => textInput.props.onChangeText('Hi!'));
+  await act(async () => byLabel(editor, 'Done').props.onPress());
+  await act(async () => byLabel(editor, 'Send').props.onPress());
+
+  expect(captureRef).toHaveBeenCalled();
+  expect(onSendMessage).toHaveBeenCalledWith(
+    expect.objectContaining({
+      attachment: expect.objectContaining({ uri: 'file://captured.jpg' }),
     })
   );
 });

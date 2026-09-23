@@ -74,3 +74,5 @@ export * from "./StickerSVG";
 export * from "./EmojiCategorySVG";
 export * from "./DoubleTickSVG";
 export * from "./HeadphonesSVG";
+export * from "./PencilSVG";
+export * from "./ViewOnceSVG";
