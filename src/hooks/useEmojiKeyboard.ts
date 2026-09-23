@@ -1,13 +1,13 @@
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
-  Keyboard,
   NativeSyntheticEvent,
   TextInput,
   TextInputSelectionChangeEventData,
   useWindowDimensions,
 } from 'react-native';
 import {
+  KeyboardController,
   KeyboardEvents,
   useKeyboardController,
   useReanimatedKeyboardAnimation,
@@ -119,14 +119,6 @@ export const useEmojiKeyboard = ({
     insetSpace.value = insets.bottom;
   }, [insets.bottom, insetSpace]);
 
-  useEffect(() => {
-    const target = activePanel ? panelHeight : 0;
-    // Under a visible keyboard the change can't be seen, so skip animating
-    panelSpace.value = keyboardVisibleRef.current
-      ? target
-      : withTiming(target, PANEL_ANIMATION);
-  }, [activePanel, panelHeight, panelSpace]);
-
   const bottomAreaStyle = useAnimatedStyle(() => ({
     height: Math.max(
       -keyboard.height.value,
@@ -134,6 +126,36 @@ export const useEmojiKeyboard = ({
       insetSpace.value
     ),
   }));
+
+  // Latest heights for event handlers that outlive a render
+  const heightsRef = useRef({
+    emoji: emojiPanelHeight,
+    attach: attachPanelHeight,
+  });
+  heightsRef.current = { emoji: emojiPanelHeight, attach: attachPanelHeight };
+
+  /**
+   * Show a panel (or none). The reserved space is written straight to the UI
+   * thread, so the input bar holds its place even if React is still busy
+   * rendering the panel when the keyboard starts to slide away.
+   */
+  const showPanel = useCallback(
+    (kind: PanelKind | null) => {
+      const target = kind ? heightsRef.current[kind] : 0;
+      // Under a visible keyboard the change can't be seen, so skip animating
+      panelSpace.value = keyboardVisibleRef.current
+        ? target
+        : withTiming(target, PANEL_ANIMATION);
+      setActivePanel(kind);
+    },
+    [panelSpace]
+  );
+
+  // Keep the space in step if the panel's height changes while it's open
+  // (e.g. the first real keyboard height arrives)
+  useEffect(() => {
+    if (activePanel) panelSpace.value = panelHeight;
+  }, [activePanel, panelHeight, panelSpace]);
 
   useEffect(() => {
     const subscriptions = [
@@ -147,7 +169,7 @@ export const useEmojiKeyboard = ({
         }
       }),
       // Close the panel only once the keyboard fully covers it
-      KeyboardEvents.addListener('keyboardDidShow', () => setActivePanel(null)),
+      KeyboardEvents.addListener('keyboardDidShow', () => showPanel(null)),
       KeyboardEvents.addListener('keyboardWillHide', () => {
         keyboardVisibleRef.current = false;
         setKeyboardVisible(false);
@@ -158,9 +180,9 @@ export const useEmojiKeyboard = ({
       subscriptions.forEach(subscription => subscription.remove());
       if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
     };
-  }, []);
+  }, [showPanel]);
 
-  const closePanel = useCallback(() => setActivePanel(null), []);
+  const closePanel = useCallback(() => showPanel(null), [showPanel]);
 
   // Android back button closes the panel before leaving the screen
   useEffect(() => {
@@ -175,10 +197,15 @@ export const useEmojiKeyboard = ({
     return () => subscription.remove();
   }, [activePanel, closePanel]);
 
-  const openPanel = useCallback((kind: PanelKind) => {
-    setActivePanel(kind);
-    Keyboard.dismiss();
-  }, []);
+  const openPanel = useCallback(
+    (kind: PanelKind) => {
+      showPanel(kind);
+      // RN's Keyboard.dismiss() can miss on some Android devices (it needs RN
+      // to know the focused input); this hides the IME natively
+      KeyboardController.dismiss();
+    },
+    [showPanel]
+  );
 
   // Call from the TextInput's onFocus (tapping the input while the panel is
   // open). The panel stays until the keyboard has slid over it.

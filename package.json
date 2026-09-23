@@ -1,6 +1,6 @@
 {
   "name": "@dev-tech/uchat-chat-input",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "WhatsApp-style chat input for React Native: emoji & sticker keyboard, attachment menu, photo editor, voice button",
   "repository": {
     "type": "git",

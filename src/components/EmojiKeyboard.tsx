@@ -25,6 +25,8 @@ export interface EmojiKeyboardProps {
   onBackspace: () => void;
   /** Shows the sticker tab when provided */
   onStickerSelect?: (sticker: Sticker) => void;
+  /** Change to re-read recent emoji (e.g. each time the panel opens) */
+  refreshKey?: number;
 }
 
 /** Panel that replaces the system keyboard: emoji grid and stickers */
@@ -34,6 +36,7 @@ export const EmojiKeyboard: React.FC<EmojiKeyboardProps> = ({
   onEmojiSelect,
   onBackspace,
   onStickerSelect,
+  refreshKey,
 }) => {
   const [tab, setTab] = useState<Tab>('emoji');
   const repeatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -115,7 +118,7 @@ export const EmojiKeyboard: React.FC<EmojiKeyboardProps> = ({
       {tab === 'sticker' && onStickerSelect ? (
         <StickerPicker onStickerSelect={onStickerSelect} />
       ) : (
-        <EmojiPicker onEmojiSelect={onEmojiSelect} />
+        <EmojiPicker onEmojiSelect={onEmojiSelect} refreshKey={refreshKey} />
       )}
     </View>
   );

@@ -3,7 +3,7 @@
  * already use other picker libraries don't have to install these:
  *   react-native-image-picker, @react-native-documents/picker
  */
-import { Alert } from 'react-native';
+import { Alert, Linking, PermissionsAndroid, Platform } from 'react-native';
 import {
   errorCodes,
   isErrorWithCode,
@@ -38,14 +38,41 @@ const fromImageAsset = (asset: Asset): Attachment | null =>
       }
     : null;
 
+const showCameraPermissionError = () =>
+  Alert.alert(
+    'Camera access needed',
+    'Allow camera access in Settings to take photos.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Open Settings', onPress: () => Linking.openSettings() },
+    ]
+  );
+
+/**
+ * react-native-image-picker needs no camera permission, unless the app's
+ * manifest declares android.permission.CAMERA (e.g. for another feature).
+ * Then Android requires it to be granted at runtime first. Requesting a
+ * permission the manifest doesn't declare is a no-op, so always ask.
+ */
+const ensureCameraPermission = async () => {
+  if (Platform.OS !== 'android') return;
+  const permission = PermissionsAndroid.PERMISSIONS.CAMERA;
+  if (!(await PermissionsAndroid.check(permission))) {
+    await PermissionsAndroid.request(permission);
+  }
+};
+
 const handleImageResponse = (response: ImagePickerResponse) => {
   if (response.didCancel) return [];
   if (response.errorCode) {
-    showError(
-      response.errorCode === 'camera_unavailable'
-        ? 'No camera is available on this device.'
-        : response.errorMessage
-    );
+    if (response.errorCode === 'permission') showCameraPermissionError();
+    else {
+      showError(
+        response.errorCode === 'camera_unavailable'
+          ? 'No camera is available on this device.'
+          : response.errorMessage
+      );
+    }
     return [];
   }
   return (response.assets || [])
@@ -77,10 +104,12 @@ const pickFiles = async (kind: AttachmentKind): Promise<Attachment[]> => {
 };
 
 export const defaultPickers: AttachmentPickers = {
-  openCamera: async () =>
-    handleImageResponse(
+  openCamera: async () => {
+    await ensureCameraPermission();
+    return handleImageResponse(
       await launchCamera({ mediaType: 'photo', quality: 0.8 })
-    ),
+    );
+  },
   openGallery: async () =>
     handleImageResponse(
       await launchImageLibrary({

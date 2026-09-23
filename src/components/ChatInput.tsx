@@ -1,4 +1,10 @@
-import React, { RefObject, useCallback, useRef, useState } from 'react';
+import React, {
+  RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   Animated,
   PanResponder,
@@ -91,6 +97,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     value: text,
     onChangeText: setText,
   });
+
+  // The emoji panel stays mounted after first use so reopening is instant;
+  // opens counts re-read the recents each time
+  const [emojiOpens, setEmojiOpens] = useState(0);
+  const emojiActive = emojiKeyboard.activePanel === 'emoji';
+  useEffect(() => {
+    if (emojiActive) setEmojiOpens(count => count + 1);
+  }, [emojiActive]);
 
   const {
     isRecording,
@@ -353,11 +367,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onAudio={fromMenu(pickers.pickAudio)}
           />
         )}
-        {emojiKeyboard.activePanel === 'emoji' && (
-          <EmojiKeyboard
-            {...emojiKeyboard.panelProps}
-            onStickerSelect={stickers ? handleStickerSelect : undefined}
-          />
+        {emojiOpens > 0 && (
+          <View
+            style={emojiKeyboard.activePanel === 'attach' && styles.hidden}
+            pointerEvents={emojiActive ? 'auto' : 'none'}>
+            <EmojiKeyboard
+              {...emojiKeyboard.panelProps}
+              refreshKey={emojiOpens}
+              onStickerSelect={stickers ? handleStickerSelect : undefined}
+            />
+          </View>
         )}
       </Reanimated.View>
 
@@ -421,5 +440,8 @@ const styles = StyleSheet.create({
   },
   bottomArea: {
     overflow: 'hidden',
+  },
+  hidden: {
+    display: 'none',
   },
 });

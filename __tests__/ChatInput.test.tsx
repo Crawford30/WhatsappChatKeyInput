@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, Keyboard, TextInput } from 'react-native';
+import { Image, TextInput } from 'react-native';
+import { KeyboardController } from 'react-native-keyboard-controller';
 import { captureRef } from 'react-native-view-shot';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -41,7 +42,7 @@ const render = async (onSendMessage = jest.fn()) => {
 };
 
 test('emoji panel inserts, deletes and toggles back to the keyboard', async () => {
-  const dismiss = jest.spyOn(Keyboard, 'dismiss');
+  const dismiss = KeyboardController.dismiss as jest.Mock;
   const root = await render();
   const input = () => root.findByType(TextInput);
   const panel = () => root.findByType(EmojiKeyboard);
@@ -277,4 +278,33 @@ test('library mode: controlled text, header, custom voice button, no pickers', a
   await act(async () => renderer.update(mount('hello')));
   expect(root.findByType(TextInput).props.value).toBe('hello');
   expect(root.findAllByType(Recorder)).toHaveLength(0); // send button instead
+});
+
+describe('defaultPickers.openCamera on Android', () => {
+  const { Platform, PermissionsAndroid } = require('react-native');
+  const originalOS = Platform.OS;
+  beforeEach(() => {
+    Platform.OS = 'android';
+  });
+  afterEach(() => {
+    Platform.OS = originalOS;
+    jest.restoreAllMocks();
+  });
+
+  test('asks for camera permission before opening the camera', async () => {
+    jest.spyOn(PermissionsAndroid, 'check').mockResolvedValue(false);
+    const request = jest
+      .spyOn(PermissionsAndroid, 'request')
+      .mockResolvedValue('granted');
+    await defaultPickers.openCamera();
+    expect(request).toHaveBeenCalledWith(PermissionsAndroid.PERMISSIONS.CAMERA);
+    expect(launchCamera).toHaveBeenCalled();
+  });
+
+  test('skips the prompt when already granted', async () => {
+    jest.spyOn(PermissionsAndroid, 'check').mockResolvedValue(true);
+    const request = jest.spyOn(PermissionsAndroid, 'request');
+    await defaultPickers.openCamera();
+    expect(request).not.toHaveBeenCalled();
+  });
 });

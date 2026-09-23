@@ -93,12 +93,14 @@ const screenWidth = Dimensions.get('window').width;
 
 /**
  * Converts a file picked in ChatInput into the `attachments` shape that
- * handleSendMessage / prepareAttachmentsPost expect.
- * NOTE: check `document_type` and `caption` against what the old
- * DocumentPicker sent; MessageItem relies on caption 'message_attachment'
- * for images and 'audio' for audio.
+ * handleSendMessage / prepareAttachmentsPost expect. Mirrors the old
+ * DocumentPicker (documents, audio) and ImageFilePicker (photos); MessageItem
+ * relies on caption 'message_attachment' for images and 'audio' for audio.
  */
 const toUchatAttachments = (attachment: Attachment) => ({
+  author_first_name: 'test',
+  author_last_name: 'test',
+  author_phone_number: 'test',
   file: [
     {
       uri: attachment.uri,
