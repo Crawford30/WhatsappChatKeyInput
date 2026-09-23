@@ -18,6 +18,18 @@ export interface Attachment {
   height?: number;
 }
 
+/**
+ * Where attachments come from. Each resolves to the picked files, or [] when
+ * the user cancels. Supply your own to reuse existing picker libraries, or
+ * use `defaultPickers` from '<package>/src/pickers'.
+ */
+export interface AttachmentPickers {
+  openCamera: () => Promise<Attachment[]>;
+  openGallery: () => Promise<Attachment[]>;
+  pickDocument: () => Promise<Attachment[]>;
+  pickAudio: () => Promise<Attachment[]>;
+}
+
 export interface Message {
   id: string;
   text: string;

@@ -1617,6 +1617,55 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@dev-tech/uchat-chat-input@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "@dev-tech/uchat-chat-input@workspace:."
+  dependencies:
+    "@babel/core": ^7.25.2
+    "@babel/preset-env": ^7.25.3
+    "@babel/runtime": ^7.25.0
+    "@react-native-community/cli": 20.0.0
+    "@react-native-community/cli-platform-android": 20.0.0
+    "@react-native-community/cli-platform-ios": 20.0.0
+    "@react-native-documents/picker": ^12.0.2
+    "@react-native/babel-preset": 0.82.0
+    "@react-native/eslint-config": 0.82.0
+    "@react-native/metro-config": 0.82.0
+    "@react-native/new-app-screen": 0.82.0
+    "@react-native/typescript-config": 0.82.0
+    "@types/color": ^4.2.0
+    "@types/jest": ^29.5.13
+    "@types/react": ^19.1.1
+    "@types/react-test-renderer": ^19.1.0
+    color: ^4.2.3
+    eslint: ^8.19.0
+    jest: ^29.6.3
+    prettier: 2.8.8
+    react: 19.1.1
+    react-native: 0.82.0
+    react-native-image-picker: ^8.2.1
+    react-native-safe-area-context: ^5.6.2
+    react-native-svg: ^15.11.1
+    react-native-svg-transformer: ^1.5.0
+    react-native-view-shot: ^6.0.1
+    react-test-renderer: 19.1.1
+    typescript: ^5.8.3
+  peerDependencies:
+    "@react-native-documents/picker": ">=10"
+    react: ">=18"
+    react-native: ">=0.79"
+    react-native-image-picker: ">=7"
+    react-native-safe-area-context: ">=4"
+    react-native-svg: ">=13"
+    react-native-view-shot: ">=4"
+  peerDependenciesMeta:
+    "@react-native-documents/picker":
+      optional: true
+    react-native-image-picker:
+      optional: true
+  languageName: unknown
+  linkType: soft
+
 "@eslint-community/eslint-utils@npm:^4.2.0, @eslint-community/eslint-utils@npm:^4.9.1":
   version: 4.9.1
   resolution: "@eslint-community/eslint-utils@npm:4.9.1"
@@ -3051,42 +3100,6 @@ __metadata:
   checksum: 811ff9bd99efc3e814e6bd1da8064452a1f2b0057f08d1c7a18428e04c13ac3db356a1cdcf8011a35ac84a47d3d351b8bb8b776dea0f9caac16e6f26b6611496
   languageName: node
   linkType: hard
-
-"WhatsappChatInput@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "WhatsappChatInput@workspace:."
-  dependencies:
-    "@babel/core": ^7.25.2
-    "@babel/preset-env": ^7.25.3
-    "@babel/runtime": ^7.25.0
-    "@react-native-community/cli": 20.0.0
-    "@react-native-community/cli-platform-android": 20.0.0
-    "@react-native-community/cli-platform-ios": 20.0.0
-    "@react-native-documents/picker": ^12.0.2
-    "@react-native/babel-preset": 0.82.0
-    "@react-native/eslint-config": 0.82.0
-    "@react-native/metro-config": 0.82.0
-    "@react-native/new-app-screen": 0.82.0
-    "@react-native/typescript-config": 0.82.0
-    "@types/color": ^4.2.0
-    "@types/jest": ^29.5.13
-    "@types/react": ^19.1.1
-    "@types/react-test-renderer": ^19.1.0
-    color: ^4.2.3
-    eslint: ^8.19.0
-    jest: ^29.6.3
-    prettier: 2.8.8
-    react: 19.1.1
-    react-native: 0.82.0
-    react-native-image-picker: ^8.2.1
-    react-native-safe-area-context: ^5.6.2
-    react-native-svg: ^15.11.1
-    react-native-svg-transformer: ^1.5.0
-    react-native-view-shot: ^6.0.1
-    react-test-renderer: 19.1.1
-    typescript: ^5.8.3
-  languageName: unknown
-  linkType: soft
 
 "abbrev@npm:^4.0.0":
   version: 4.0.0

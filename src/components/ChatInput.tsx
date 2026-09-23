@@ -1,9 +1,10 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { RefObject, useCallback, useRef, useState } from 'react';
 import {
   Animated,
   PanResponder,
   StyleSheet,
   TextInput,
+  TextInputProps,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -15,10 +16,14 @@ import { EmojiSVG } from '../assets/svg/EmojiSVG';
 import { KeyboardSVG } from '../assets/svg/KeyboardSVG';
 import { MicSVG } from '../assets/svg/MicSVG';
 import { SendSVG } from '../assets/svg/SendSVG';
-import { useAttachmentPicker } from '../hooks/useAttachmentPicker';
 import { useEmojiKeyboard } from '../hooks/useEmojiKeyboard';
 import { useVoiceRecording } from '../hooks/useInputHook';
-import type { Attachment, Message, Sticker } from '../types/inputTypes';
+import type {
+  Attachment,
+  AttachmentPickers,
+  Message,
+  Sticker,
+} from '../types/inputTypes';
 import { AttachmentMenu } from './AttachmentMenu';
 import { EditedImage, MediaEditor } from './media/MediaEditor';
 import { EmojiKeyboard } from './EmojiKeyboard';
@@ -27,18 +32,57 @@ import { VoiceRecorder } from './VoiceRecorder';
 const CANCEL_THRESHOLD = -120;
 const ICON_SIZE = 24;
 
-interface ChatInputProps {
+export interface ChatInputProps {
   onSendMessage: (message: Message) => void;
   /** Shown on the photo editor's send row, like WhatsApp */
   recipientName: string;
+  /** Controlled text. Leave both out and the input keeps its own state */
+  value?: string;
+  onChangeText?: (text: string) => void;
+  /** Use your own ref, e.g. to focus or move the cursor after a @mention */
+  inputRef?: RefObject<TextInput | null>;
+  onSelectionChange?: TextInputProps['onSelectionChange'];
+  onFocus?: TextInputProps['onFocus'];
+  placeholder?: string;
+  /** Rendered inside the pill above the text, e.g. a reply preview */
+  header?: React.ReactNode;
+  /** Attachment sources; the clip and camera buttons hide without them */
+  pickers?: AttachmentPickers;
+  /**
+   * Replaces the built-in mic button while the input is empty. The built-in
+   * recorder only simulates recording, so pass your real recorder here.
+   */
+  voiceButton?: React.ReactNode;
+  /** Show the sticker tab in the emoji panel (default true) */
+  stickers?: boolean;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
   onSendMessage,
   recipientName,
+  value,
+  onChangeText,
+  inputRef: externalInputRef,
+  onSelectionChange,
+  onFocus,
+  placeholder = 'Message',
+  header,
+  pickers,
+  voiceButton,
+  stickers = true,
 }) => {
-  const [text, setText] = useState('');
-  const inputRef = useRef<TextInput>(null);
+  const [ownText, setOwnText] = useState('');
+  const text = value ?? ownText;
+  const setText = useCallback(
+    (next: string) => {
+      if (value === undefined) setOwnText(next);
+      onChangeText?.(next);
+    },
+    [value, onChangeText]
+  );
+
+  const ownInputRef = useRef<TextInput>(null);
+  const inputRef = externalInputRef ?? ownInputRef;
   const hasText = text.trim().length > 0;
 
   const emojiKeyboard = useEmojiKeyboard({
@@ -65,7 +109,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       type: 'text',
     });
     setText('');
-  }, [hasText, text, onSendMessage]);
+  }, [hasText, text, onSendMessage, setText]);
 
   // Photos go through the editor first; documents and audio send straight
   // away with any typed text as the caption of the first one
@@ -90,7 +134,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       });
       if (caption) setText('');
     },
-    [text, onSendMessage]
+    [text, onSendMessage, setText]
   );
 
   const handleEditedImages = useCallback(
@@ -108,15 +152,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       setEditingImages([]);
       setText('');
     },
-    [onSendMessage]
+    [onSendMessage, setText]
   );
 
-  const picker = useAttachmentPicker(handleAttachments);
+  const runPicker = async (pick: () => Promise<Attachment[]>) => {
+    const attachments = await pick();
+    if (attachments.length) handleAttachments(attachments);
+  };
 
   // Close the menu first so it doesn't linger behind the system picker
-  const fromMenu = (action: () => void) => () => {
+  const fromMenu = (pick: () => Promise<Attachment[]>) => () => {
     emojiKeyboard.closePanel();
-    action();
+    runPicker(pick);
   };
 
   const handleStickerSelect = useCallback(
@@ -185,64 +232,75 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               cancelThreshold={CANCEL_THRESHOLD}
             />
           ) : (
-            <View style={[themeStyles.flexRow, styles.pillRow]}>
-              <TouchableOpacity
-                accessibilityLabel={
-                  emojiKeyboard.isEmojiMode ? 'Show keyboard' : 'Show emoji'
-                }
-                style={[themeStyles.flexCenter, styles.iconButton]}
-                onPress={emojiKeyboard.toggleEmojiKeyboard}
-                activeOpacity={0.6}>
-                {emojiKeyboard.isEmojiMode ? (
-                  <KeyboardSVG
-                    width={ICON_SIZE}
-                    height={ICON_SIZE}
-                    color={iconColor}
-                  />
-                ) : (
-                  <EmojiSVG
-                    width={ICON_SIZE}
-                    height={ICON_SIZE}
-                    color={iconColor}
-                  />
-                )}
-              </TouchableOpacity>
-
-              <TextInput
-                ref={inputRef}
-                style={[themeStyles.flex1, styles.textInput]}
-                placeholder="Message"
-                placeholderTextColor="#9E9E9E"
-                selectionColor={primaryColor}
-                value={text}
-                onChangeText={setText}
-                onFocus={emojiKeyboard.handleInputFocus}
-                onSelectionChange={emojiKeyboard.handleSelectionChange}
-                multiline
-                maxLength={1000}
-              />
-
-              <TouchableOpacity
-                accessibilityLabel="Attach"
-                style={[themeStyles.flexCenter, styles.iconButton]}
-                onPress={emojiKeyboard.toggleAttachMenu}
-                activeOpacity={0.6}>
-                <AttachSVG
-                  width={ICON_SIZE}
-                  height={ICON_SIZE}
-                  color={iconColor}
-                />
-              </TouchableOpacity>
-              {!hasText && (
+            <>
+              {header}
+              <View style={[themeStyles.flexRow, styles.pillRow]}>
                 <TouchableOpacity
-                  accessibilityLabel="Camera"
+                  accessibilityLabel={
+                    emojiKeyboard.isEmojiMode ? 'Show keyboard' : 'Show emoji'
+                  }
                   style={[themeStyles.flexCenter, styles.iconButton]}
-                  onPress={picker.openCamera}
+                  onPress={emojiKeyboard.toggleEmojiKeyboard}
                   activeOpacity={0.6}>
-                  <CameraSVG width={22} height={22} color={iconColor} />
+                  {emojiKeyboard.isEmojiMode ? (
+                    <KeyboardSVG
+                      width={ICON_SIZE}
+                      height={ICON_SIZE}
+                      color={iconColor}
+                    />
+                  ) : (
+                    <EmojiSVG
+                      width={ICON_SIZE}
+                      height={ICON_SIZE}
+                      color={iconColor}
+                    />
+                  )}
                 </TouchableOpacity>
-              )}
-            </View>
+
+                <TextInput
+                  ref={inputRef}
+                  style={[themeStyles.flex1, styles.textInput]}
+                  placeholder={placeholder}
+                  placeholderTextColor="#9E9E9E"
+                  selectionColor={primaryColor}
+                  value={text}
+                  onChangeText={setText}
+                  onFocus={event => {
+                    emojiKeyboard.handleInputFocus();
+                    onFocus?.(event);
+                  }}
+                  onSelectionChange={event => {
+                    emojiKeyboard.handleSelectionChange(event);
+                    onSelectionChange?.(event);
+                  }}
+                  multiline
+                  maxLength={1000}
+                />
+
+                {pickers && (
+                  <TouchableOpacity
+                    accessibilityLabel="Attach"
+                    style={[themeStyles.flexCenter, styles.iconButton]}
+                    onPress={emojiKeyboard.toggleAttachMenu}
+                    activeOpacity={0.6}>
+                    <AttachSVG
+                      width={ICON_SIZE}
+                      height={ICON_SIZE}
+                      color={iconColor}
+                    />
+                  </TouchableOpacity>
+                )}
+                {pickers && !hasText && (
+                  <TouchableOpacity
+                    accessibilityLabel="Camera"
+                    style={[themeStyles.flexCenter, styles.iconButton]}
+                    onPress={() => runPicker(pickers.openCamera)}
+                    activeOpacity={0.6}>
+                    <CameraSVG width={22} height={22} color={iconColor} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </>
           )}
         </View>
 
@@ -263,6 +321,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               style={styles.sendIcon}
             />
           </TouchableOpacity>
+        ) : voiceButton ? (
+          voiceButton
         ) : (
           <View
             accessibilityLabel="Hold to record"
@@ -278,19 +338,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         )}
       </View>
 
-      {emojiKeyboard.activePanel === 'attach' ? (
+      {emojiKeyboard.activePanel === 'attach' && pickers ? (
         <AttachmentMenu
           height={emojiKeyboard.panelProps.height}
           bottomInset={emojiKeyboard.panelProps.bottomInset}
-          onDocument={fromMenu(picker.pickDocument)}
-          onCamera={fromMenu(picker.openCamera)}
-          onGallery={fromMenu(picker.openGallery)}
-          onAudio={fromMenu(picker.pickAudio)}
+          onDocument={fromMenu(pickers.pickDocument)}
+          onCamera={fromMenu(pickers.openCamera)}
+          onGallery={fromMenu(pickers.openGallery)}
+          onAudio={fromMenu(pickers.pickAudio)}
         />
       ) : (
         <EmojiKeyboard
           {...emojiKeyboard.panelProps}
-          onStickerSelect={handleStickerSelect}
+          onStickerSelect={stickers ? handleStickerSelect : undefined}
         />
       )}
 

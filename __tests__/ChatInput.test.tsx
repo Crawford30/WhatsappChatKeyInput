@@ -4,6 +4,7 @@ import { captureRef } from 'react-native-view-shot';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ChatInput } from '../src/components/ChatInput';
+import { defaultPickers } from '../src/pickers';
 import { EmojiKeyboard } from '../src/components/EmojiKeyboard';
 import { AttachmentMenu } from '../src/components/AttachmentMenu';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
@@ -28,7 +29,11 @@ const render = async (onSendMessage = jest.fn()) => {
   await act(async () => {
     renderer = ReactTestRenderer.create(
       <SafeAreaProvider initialMetrics={metrics}>
-        <ChatInput onSendMessage={onSendMessage} recipientName="Test" />
+        <ChatInput
+          onSendMessage={onSendMessage}
+          recipientName="Test"
+          pickers={defaultPickers}
+        />
       </SafeAreaProvider>
     );
   });
@@ -219,4 +224,57 @@ test('sticker tab shows stickers and sends a sticker message', async () => {
       sticker: stickers[0].props.sticker,
     })
   );
+});
+
+test('library mode: controlled text, header, custom voice button, no pickers', async () => {
+  const onChangeText = jest.fn();
+  const onSelectionChange = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  const Header = () => null;
+  const Recorder = () => null;
+  const mount = (value: string) => (
+    <SafeAreaProvider initialMetrics={metrics}>
+      <ChatInput
+        onSendMessage={jest.fn()}
+        recipientName="Test"
+        value={value}
+        onChangeText={onChangeText}
+        onSelectionChange={onSelectionChange}
+        header={<Header />}
+        voiceButton={<Recorder />}
+        stickers={false}
+      />
+    </SafeAreaProvider>
+  );
+  await act(async () => {
+    renderer = ReactTestRenderer.create(mount(''));
+  });
+  const root = renderer.root;
+
+  expect(root.findAllByType(Header)).toHaveLength(1);
+  expect(root.findAllByType(Recorder)).toHaveLength(1);
+  expect(
+    root.findAll(n => ['Attach', 'Camera'].includes(n.props.accessibilityLabel))
+  ).toHaveLength(0);
+
+  // Emoji from the panel goes to the parent, which owns the text
+  await act(async () => byLabel(root, 'Show emoji').props.onPress());
+  await act(async () =>
+    root.findByType(EmojiKeyboard).props.onEmojiSelect('🎉')
+  );
+  expect(onChangeText).toHaveBeenLastCalledWith('🎉');
+  expect(root.findByType(EmojiKeyboard).props.onStickerSelect).toBeUndefined();
+
+  // The parent's selection handler still runs (needed for @mentions)
+  await act(async () =>
+    root.findByType(TextInput).props.onSelectionChange({
+      nativeEvent: { selection: { start: 0, end: 0 } },
+    })
+  );
+  expect(onSelectionChange).toHaveBeenCalled();
+
+  // Parent-provided value is what's shown
+  await act(async () => renderer.update(mount('hello')));
+  expect(root.findByType(TextInput).props.value).toBe('hello');
+  expect(root.findAllByType(Recorder)).toHaveLength(0); // send button instead
 });

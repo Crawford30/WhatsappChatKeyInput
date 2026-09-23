@@ -17,6 +17,7 @@ import { MoreSVG } from '../assets/svg/MoreSVG';
 import { ChatInput } from '../components/ChatInput';
 import { MessageBubble } from '../components/MessageBubble';
 import { MediaViewer } from '../components/media/MediaViewer';
+import { defaultPickers } from '../pickers';
 import type { Message } from '../types/inputTypes';
 
 const HOUR = 3600000;
@@ -136,6 +137,7 @@ export const ChatScreen: React.FC = () => {
         <ChatInput
           onSendMessage={handleSendMessage}
           recipientName={CHAT_TITLE}
+          pickers={defaultPickers}
         />
       </View>
       <MediaViewer
