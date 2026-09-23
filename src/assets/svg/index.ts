@@ -64,3 +64,11 @@ export * from "./UndoSVG";
 export * from "./RedoSVG";
 export * from "./PlugSVG"
 export * from "./GenericSwitch"
+export * from "./EmojiSVG";
+export * from "./KeyboardSVG";
+export * from "./AttachSVG";
+export * from "./MicSVG";
+export * from "./SendSVG";
+export * from "./BackspaceSVG";
+export * from "./StickerSVG";
+export * from "./EmojiCategorySVG";

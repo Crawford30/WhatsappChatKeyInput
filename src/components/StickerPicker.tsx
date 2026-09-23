@@ -8,6 +8,7 @@ import {
   Dimensions,
   Image,
 } from 'react-native';
+import { colorAlpha, primaryColor } from '../assets/style/Colors';
 import { STICKER_PACKS } from '../data/stickerData';
 import type { Sticker } from '../types/inputTypes';
 
@@ -30,7 +31,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
     (sticker: Sticker) => {
       onStickerSelect(sticker);
     },
-    [onStickerSelect],
+    [onStickerSelect]
   );
 
   const renderSticker = useCallback(
@@ -38,8 +39,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       <TouchableOpacity
         style={styles.stickerButton}
         onPress={() => handleStickerPress(item)}
-        activeOpacity={0.6}
-      >
+        activeOpacity={0.6}>
         <Image
           source={{ uri: item.image }}
           style={styles.stickerImage}
@@ -47,7 +47,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         />
       </TouchableOpacity>
     ),
-    [handleStickerPress],
+    [handleStickerPress]
   );
 
   const renderPackTab = useCallback(
@@ -59,12 +59,11 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
           selectedPack === pack.id && styles.packTabActive,
         ]}
         onPress={() => setSelectedPack(pack.id)}
-        activeOpacity={0.7}
-      >
+        activeOpacity={0.7}>
         <Text style={styles.packIcon}>{pack.icon}</Text>
       </TouchableOpacity>
     ),
-    [selectedPack],
+    [selectedPack]
   );
 
   return (
@@ -88,8 +87,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    height: 350,
-    backgroundColor: '#FFFFFF',
+    flex: 1,
   },
   stickerGrid: {
     paddingHorizontal: 4,
@@ -109,20 +107,20 @@ const styles = StyleSheet.create({
   packBar: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: '#F5F5F5',
-    paddingVertical: 8,
+    borderTopColor: '#ddd',
+    paddingVertical: 6,
     paddingHorizontal: 4,
   },
   packTab: {
     flex: 1,
-    height: 40,
+    height: 38,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 19,
+    marginHorizontal: 2,
   },
   packTabActive: {
-    backgroundColor: '#E8E8E8',
+    backgroundColor: colorAlpha(primaryColor).shade10,
   },
   packIcon: {
     fontSize: 24,

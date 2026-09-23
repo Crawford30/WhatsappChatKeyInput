@@ -3,15 +3,12 @@ import {
   View,
   FlatList,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   Text,
   TouchableOpacity,
 } from 'react-native';
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colorAlpha, dimWhite, primaryColor } from '../assets/style/Colors';
+import { MoreSVG } from '../assets/svg/MoreSVG';
 import { ChatInput } from '../components/ChatInput';
 import type { Message } from '../types/inputTypes';
 
@@ -38,14 +35,16 @@ export const ChatScreen: React.FC = () => {
     setMessages(prev => [...prev, message]);
   }, []);
 
+  const scrollToBottom = useCallback((animated = true) => {
+    flatListRef.current?.scrollToEnd({ animated });
+  }, []);
+
   useEffect(() => {
     // Auto-scroll to bottom when new message is added
     if (messages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      setTimeout(scrollToBottom, 100);
     }
-  }, [messages.length]);
+  }, [messages.length, scrollToBottom]);
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isVoice = item.type === 'voice';
@@ -90,7 +89,7 @@ export const ChatScreen: React.FC = () => {
           <Text style={styles.headerSubtitle}>online</Text>
         </View>
         <TouchableOpacity style={styles.menuButton}>
-          <Text style={styles.menuIcon}>⋮</Text>
+          <MoreSVG width={22} height={22} color="white" />
         </TouchableOpacity>
       </View>
     ),
@@ -98,45 +97,38 @@ export const ChatScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView
-      style={[
-        styles.container,
-        { paddingTop: insets.top, paddingBottom: insets.bottom },
-      ]}>
+    // ChatInput reserves the keyboard / emoji panel / bottom inset space itself
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {renderHeader()}
-      <KeyboardAvoidingView
-        style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
-        <View style={styles.chatContainer}>
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            renderItem={renderMessage}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.messageList}
-            showsVerticalScrollIndicator={false}
-          />
-          <ChatInput onSendMessage={handleSendMessage} />
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <View style={styles.chatContainer}>
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.messageList}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          // Keep the latest message visible when the keyboard or panel opens
+          onLayout={() => scrollToBottom(false)}
+        />
+        <ChatInput onSendMessage={handleSendMessage} />
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: primaryColor,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 10,
-    backgroundColor: '#25D366',
-    borderBottomWidth: 1,
-    borderBottomColor: '#20BC5A',
+    backgroundColor: primaryColor,
   },
   backButton: {
     width: 40,
@@ -159,7 +151,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#E0F5E9',
+    color: colorAlpha('#ffffff').shade80,
   },
   menuButton: {
     width: 40,
@@ -167,16 +159,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  menuIcon: {
-    fontSize: 24,
-    color: '#FFFFFF',
-  },
-  keyboardAvoid: {
-    flex: 1,
-  },
   chatContainer: {
     flex: 1,
-    backgroundColor: '#E5DDD5',
+    backgroundColor: dimWhite,
   },
   messageList: {
     paddingHorizontal: 12,
@@ -188,7 +173,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   messageBubble: {
-    backgroundColor: '#DCF8C6',
+    backgroundColor: colorAlpha(primaryColor).shade15,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,

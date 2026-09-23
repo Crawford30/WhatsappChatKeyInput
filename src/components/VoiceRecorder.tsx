@@ -1,64 +1,27 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  PanResponder,
-  Dimensions,
-} from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
+import { configSecondary, primaryColor } from '../assets/style/Colors';
+import { styles as themeStyles } from '../assets/style/Styles';
+import { formatDuration } from '../Helpers/helper';
 import type { VoiceRecording } from '../types/inputTypes';
-
-const { width } = Dimensions.get('window');
-const CANCEL_THRESHOLD = -120;
 
 interface VoiceRecorderProps {
   recording: VoiceRecording;
-  onCancel: () => void;
-  onSend: () => void;
+  /** Horizontal drag of the mic button (<= 0), driven by the parent's gesture */
+  slideX: Animated.Value;
+  cancelThreshold: number;
 }
 
 export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   recording,
-  onCancel,
-  onSend,
+  slideX,
+  cancelThreshold,
 }) => {
-  const slideAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dx < 0) {
-          slideAnim.setValue(gestureState.dx);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx < CANCEL_THRESHOLD) {
-          // Slide to cancel
-          Animated.timing(slideAnim, {
-            toValue: -width,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            onCancel();
-          });
-        } else {
-          // Spring back
-          Animated.spring(slideAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    }),
-  ).current;
 
   useEffect(() => {
     // Pulse animation for recording indicator
-    Animated.loop(
+    const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(scaleAnim, {
           toValue: 1.2,
@@ -70,83 +33,88 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           duration: 600,
           useNativeDriver: true,
         }),
-      ]),
-    ).start();
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
   }, [scaleAnim]);
 
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  const hintOpacity = slideX.interpolate({
+    inputRange: [cancelThreshold, 0],
+    outputRange: [0.2, 1],
+    extrapolate: 'clamp',
+  });
 
   return (
-    <Animated.View
-      style={[styles.container, { transform: [{ translateX: slideAnim }] }]}
-      {...panResponder.panHandlers}
-    >
-      <View style={styles.content}>
-        <Animated.View
-          style={[
-            styles.recordingIndicator,
-            { transform: [{ scale: scaleAnim }] },
-          ]}
-        />
-        <Text style={styles.duration}>
-          {formatDuration(recording.duration)}
-        </Text>
-        <View style={styles.waveformContainer}>
-          {recording.amplitude.map((amp, index) => (
-            <View
-              key={index}
-              style={[styles.waveformBar, { height: Math.max(4, amp * 30) }]}
-            />
-          ))}
-        </View>
-        <Text style={styles.slideText}>{'< Slide to cancel'}</Text>
+    <View
+      style={[
+        themeStyles.flexRow,
+        themeStyles.flexNullCenter,
+        styles.container,
+      ]}>
+      <Animated.View
+        style={[
+          styles.recordingIndicator,
+          { transform: [{ scale: scaleAnim }] },
+        ]}
+      />
+      <Text style={styles.duration}>{formatDuration(recording.duration)}</Text>
+      <View
+        style={[
+          themeStyles.flex1,
+          themeStyles.flexRow,
+          themeStyles.flexNullCenter,
+          styles.waveform,
+        ]}>
+        {recording.amplitude.map((amp, index) => (
+          <View
+            key={index}
+            style={[styles.waveformBar, { height: Math.max(4, amp * 24) }]}
+          />
+        ))}
       </View>
-    </Animated.View>
+      <Animated.Text
+        style={[
+          styles.slideText,
+          { opacity: hintOpacity, transform: [{ translateX: slideX }] },
+        ]}>
+        {'‹  Slide to cancel'}
+      </Animated.Text>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#F0F0F0',
-    paddingVertical: 12,
+    minHeight: 48,
     paddingHorizontal: 16,
   },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   recordingIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: '#FF3B30',
-    marginRight: 12,
+    marginRight: 10,
   },
   duration: {
-    fontSize: 14,
-    color: '#000',
-    fontWeight: '600',
+    fontSize: 15,
+    color: 'black',
+    fontVariant: ['tabular-nums'],
     marginRight: 12,
   },
-  waveformContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 30,
+  waveform: {
+    height: 24,
     gap: 2,
+    overflow: 'hidden',
   },
   waveformBar: {
     width: 3,
-    backgroundColor: '#34C759',
+    backgroundColor: primaryColor,
     borderRadius: 1.5,
   },
   slideText: {
-    fontSize: 12,
-    color: '#8E8E93',
+    fontSize: 14,
+    color: configSecondary,
     marginLeft: 12,
   },
 });

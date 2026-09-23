@@ -385,12 +385,16 @@ export const EMOJI_CATEGORIES: EmojiCategory[] = [
   },
 ];
 
-export const getRecentEmojis = (): string[] => {
-  // In a real app, this would load from AsyncStorage
-  return EMOJI_CATEGORIES[0].emojis;
-};
+const MAX_RECENT_EMOJIS = 27;
+
+// In a real app, persist this list (e.g. AsyncStorage) so it survives restarts
+let recentEmojis: string[] = [...EMOJI_CATEGORIES[0].emojis];
+
+export const getRecentEmojis = (): string[] => recentEmojis;
 
 export const addRecentEmoji = (emoji: string): void => {
-  // In a real app, this would save to AsyncStorage
-  console.log('Adding recent emoji:', emoji);
+  recentEmojis = [emoji, ...recentEmojis.filter(e => e !== emoji)].slice(
+    0,
+    MAX_RECENT_EMOJIS
+  );
 };
