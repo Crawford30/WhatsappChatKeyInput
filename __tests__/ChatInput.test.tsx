@@ -9,6 +9,8 @@ import { AttachmentMenu } from '../src/components/AttachmentMenu';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { pick } from '@react-native-documents/picker';
 import { MediaEditor } from '../src/components/media/MediaEditor';
+import { StickerPicker } from '../src/components/StickerPicker';
+import { StickerView } from '../src/components/StickerView';
 
 const metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -190,6 +192,31 @@ test('an edited photo is flattened with view-shot before sending', async () => {
   expect(onSendMessage).toHaveBeenCalledWith(
     expect.objectContaining({
       attachment: expect.objectContaining({ uri: 'file://captured.jpg' }),
+    })
+  );
+});
+
+test('sticker tab shows stickers and sends a sticker message', async () => {
+  const onSendMessage = jest.fn();
+  const root = await render(onSendMessage);
+
+  await act(async () => byLabel(root, 'Show emoji').props.onPress());
+  await act(async () => byLabel(root, 'Stickers').props.onPress());
+
+  const stickers = root.findAllByType(StickerView);
+  expect(stickers.length).toBeGreaterThan(0);
+  expect(stickers[0].props.sticker.emoji).toBeTruthy(); // works offline
+
+  await act(async () =>
+    root
+      .findByType(StickerPicker)
+      .props.onStickerSelect(stickers[0].props.sticker)
+  );
+  expect(onSendMessage).toHaveBeenCalledWith(
+    expect.objectContaining({
+      type: 'sticker',
+      text: '',
+      sticker: stickers[0].props.sticker,
     })
   );
 });

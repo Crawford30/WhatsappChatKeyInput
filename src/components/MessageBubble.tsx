@@ -13,9 +13,11 @@ import { MicSVG } from '../assets/svg/MicSVG';
 import { ViewOnceSVG } from '../assets/svg/ViewOnceSVG';
 import { formatDate, formatDuration } from '../Helpers/helper';
 import type { Attachment, Message } from '../types/inputTypes';
+import { StickerView } from './StickerView';
 import { BUBBLE_PRIMARY_COLOR } from '../utils/colors';
 
 const IMAGE_WIDTH = 220;
+const STICKER_SIZE = 140;
 const TAIL_SIZE = 10;
 const MUTED = colorAlpha('#000000').shade40;
 
@@ -172,6 +174,37 @@ export const MessageBubble = memo(
       );
     };
 
+    const datePill = newDay && (
+      <Text style={styles.datePill}>{formatDate(message.timestamp)}</Text>
+    );
+
+    // Stickers float without a bubble, like WhatsApp
+    if (message.type === 'sticker' && message.sticker) {
+      return (
+        <View>
+          {datePill}
+          <View
+            style={[
+              styles.stickerRow,
+              fromMe ? styles.rowMine : styles.rowTheirs,
+              firstInGroup && styles.rowFirst,
+            ]}>
+            <StickerView sticker={message.sticker} size={STICKER_SIZE} />
+            <View
+              style={[
+                themeStyles.flexRow,
+                themeStyles.flexNullCenter,
+                styles.meta,
+                styles.stickerMeta,
+              ]}>
+              <Text style={styles.time}>{formatClock(message.timestamp)}</Text>
+              {fromMe && <DoubleTickSVG width={15} height={15} color={MUTED} />}
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View>
         {newDay && (
@@ -236,6 +269,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginVertical: 10,
     elevation: 1,
+  },
+  stickerRow: {
+    paddingHorizontal: 16,
+    alignItems: 'flex-end',
+  },
+  stickerMeta: {
+    marginTop: -6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    backgroundColor: 'white',
   },
   row: {
     paddingHorizontal: 10,

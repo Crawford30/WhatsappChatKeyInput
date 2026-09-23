@@ -6,11 +6,11 @@ import {
   FlatList,
   StyleSheet,
   Dimensions,
-  Image,
 } from 'react-native';
 import { colorAlpha, primaryColor } from '../assets/style/Colors';
 import { STICKER_PACKS } from '../data/stickerData';
 import type { Sticker } from '../types/inputTypes';
+import { StickerView } from './StickerView';
 
 const { width } = Dimensions.get('window');
 const STICKER_SIZE = width / 4;
@@ -40,11 +40,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         style={styles.stickerButton}
         onPress={() => handleStickerPress(item)}
         activeOpacity={0.6}>
-        <Image
-          source={{ uri: item.image }}
-          style={styles.stickerImage}
-          resizeMode="contain"
-        />
+        <StickerView sticker={item} size={STICKER_SIZE - 16} />
       </TouchableOpacity>
     ),
     [handleStickerPress]
@@ -75,6 +71,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         numColumns={NUM_COLUMNS}
         contentContainerStyle={styles.stickerGrid}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="always"
         removeClippedSubviews={true}
         maxToRenderPerBatch={20}
         windowSize={5}
@@ -99,10 +96,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 8,
-  },
-  stickerImage: {
-    width: STICKER_SIZE - 16,
-    height: STICKER_SIZE - 16,
   },
   packBar: {
     flexDirection: 'row',

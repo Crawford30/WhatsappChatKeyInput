@@ -22,9 +22,10 @@ export interface Message {
   id: string;
   text: string;
   timestamp: Date;
-  type: 'text' | 'voice' | 'image' | 'attachment';
+  type: 'text' | 'voice' | 'image' | 'attachment' | 'sticker';
   duration?: number; // for voice messages
   attachment?: Attachment;
+  sticker?: Sticker;
   fromMe?: boolean; // defaults to true (sent from this device)
   viewOnce?: boolean;
   viewOnceOpened?: boolean;
@@ -37,10 +38,12 @@ export interface EmojiCategory {
   emojis: string[];
 }
 
+/** Either an image sticker (e.g. from a backend) or a built-in emoji sticker */
 export interface Sticker {
   id: string;
-  image: string;
   pack: string;
+  image?: string;
+  emoji?: string;
 }
 
 export interface StickerPack {

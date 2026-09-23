@@ -123,9 +123,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     (sticker: Sticker) => {
       onSendMessage({
         id: Date.now().toString(),
-        text: `[Sticker: ${sticker.id}]`,
+        text: '',
         timestamp: new Date(),
-        type: 'image',
+        type: 'sticker',
+        sticker,
       });
     },
     [onSendMessage]
