@@ -31,6 +31,8 @@ import {
 const DEFAULT_PANEL_RATIO = 0.33;
 
 // Remembered across screens so the panel matches the keyboard from the start
+export const DEFAULT_MIN_BOTTOM_INSET = 6;
+
 let lastKeyboardHeight = 0;
 
 // A hardware keyboard never shows the software one after focus
@@ -51,6 +53,8 @@ interface UseEmojiKeyboardOptions {
   inputRef: RefObject<TextInput | null>;
   value: string;
   onChangeText: (text: string) => void;
+  /** Least space kept under the input bar when nothing else fills it */
+  minBottomInset?: number;
 }
 
 /**
@@ -66,6 +70,7 @@ export const useEmojiKeyboard = ({
   inputRef,
   value,
   onChangeText,
+  minBottomInset = DEFAULT_MIN_BOTTOM_INSET,
 }: UseEmojiKeyboardOptions) => {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -114,10 +119,11 @@ export const useEmojiKeyboard = ({
   // Keyboard-controller reports the keyboard as a negative translation
   const keyboard = useReanimatedKeyboardAnimation();
   const panelSpace = useSharedValue(0);
-  const insetSpace = useSharedValue(insets.bottom);
+  const idleInset = Math.max(insets.bottom, minBottomInset);
+  const insetSpace = useSharedValue(idleInset);
   useEffect(() => {
-    insetSpace.value = insets.bottom;
-  }, [insets.bottom, insetSpace]);
+    insetSpace.value = idleInset;
+  }, [idleInset, insetSpace]);
 
   const bottomAreaStyle = useAnimatedStyle(() => ({
     height: Math.max(

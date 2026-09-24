@@ -9,11 +9,13 @@ import {
   Alert,
   Animated,
   PanResponder,
+  StyleProp,
   StyleSheet,
   TextInput,
   TextInputProps,
   TouchableOpacity,
   View,
+  ViewStyle,
 } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 import { configSecondary, primaryColor } from '../assets/style/Colors';
@@ -66,6 +68,20 @@ export interface ChatInputProps {
   voiceButton?: React.ReactNode;
   /** Show the sticker tab in the emoji panel (default true) */
   stickers?: boolean;
+  /**
+   * Show the emoji tab in the panel (default true). With `emojis` and
+   * `stickers` both off the emoji button is hidden; with only one on, the
+   * panel shows just that one, without tabs.
+   */
+  emojis?: boolean;
+  /** Sticker width and height (default 64) */
+  stickerSize?: number;
+  /** Stickers per row (default 4) */
+  stickerColumns?: number;
+  /** Merged over the bar's default style (12 sides, 6 top and bottom), e.g. `{ paddingHorizontal: 6 }` */
+  barStyle?: StyleProp<ViewStyle>;
+  /** Least space under the bar when the keyboard and panels are closed. Wins over the safe-area inset only when larger (default 6) */
+  minBottomInset?: number;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -82,6 +98,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   recorder,
   voiceButton,
   stickers = true,
+  emojis = true,
+  stickerSize,
+  stickerColumns,
+  barStyle,
+  minBottomInset,
 }) => {
   const [ownText, setOwnText] = useState('');
   const text = value ?? ownText;
@@ -101,6 +122,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     inputRef,
     value: text,
     onChangeText: setText,
+    minBottomInset,
   });
 
   // The emoji panel stays mounted after first use so reopening is instant;
@@ -298,7 +320,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <View>
-      <View style={[themeStyles.flexRow, styles.bar]}>
+      <View style={[themeStyles.flexRow, styles.bar, barStyle]}>
         <View style={[themeStyles.flex1, themeStyles.whiteBg, styles.pill]}>
           {isRecording ? (
             <VoiceRecorder
@@ -310,27 +332,29 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <>
               {header}
               <View style={[themeStyles.flexRow, styles.pillRow]}>
-                <TouchableOpacity
-                  accessibilityLabel={
-                    emojiKeyboard.isEmojiMode ? 'Show keyboard' : 'Show emoji'
-                  }
-                  style={[themeStyles.flexCenter, styles.iconButton]}
-                  onPress={emojiKeyboard.toggleEmojiKeyboard}
-                  activeOpacity={0.6}>
-                  {emojiKeyboard.isEmojiMode ? (
-                    <KeyboardSVG
-                      width={ICON_SIZE}
-                      height={ICON_SIZE}
-                      color={iconColor}
-                    />
-                  ) : (
-                    <EmojiSVG
-                      width={ICON_SIZE}
-                      height={ICON_SIZE}
-                      color={iconColor}
-                    />
-                  )}
-                </TouchableOpacity>
+                {(emojis || stickers) && (
+                  <TouchableOpacity
+                    accessibilityLabel={
+                      emojiKeyboard.isEmojiMode ? 'Show keyboard' : 'Show emoji'
+                    }
+                    style={[themeStyles.flexCenter, styles.iconButton]}
+                    onPress={emojiKeyboard.toggleEmojiKeyboard}
+                    activeOpacity={0.6}>
+                    {emojiKeyboard.isEmojiMode ? (
+                      <KeyboardSVG
+                        width={ICON_SIZE}
+                        height={ICON_SIZE}
+                        color={iconColor}
+                      />
+                    ) : (
+                      <EmojiSVG
+                        width={ICON_SIZE}
+                        height={ICON_SIZE}
+                        color={iconColor}
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
 
                 <TextInput
                   ref={inputRef}
@@ -435,6 +459,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               {...emojiKeyboard.panelProps}
               refreshKey={emojiOpens}
               onStickerSelect={stickers ? handleStickerSelect : undefined}
+              showEmoji={emojis}
+              stickerSize={stickerSize}
+              stickerColumns={stickerColumns}
             />
           </View>
         )}
@@ -456,7 +483,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 const styles = StyleSheet.create({
   bar: {
     alignItems: 'flex-end',
-    paddingHorizontal: 6,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     gap: 6,
   },

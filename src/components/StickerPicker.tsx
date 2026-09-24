@@ -5,24 +5,41 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { colorAlpha, primaryColor } from '../assets/style/Colors';
 import { STICKER_PACKS } from '../data/stickerData';
 import type { Sticker } from '../types/inputTypes';
 import { StickerView } from './StickerView';
 
-const { width } = Dimensions.get('window');
-const STICKER_SIZE = width / 4;
-const NUM_COLUMNS = 4;
+export const DEFAULT_STICKER_SIZE = 64;
+export const DEFAULT_STICKER_COLUMNS = 4;
+
+const GRID_PADDING = 4;
+const CELL_PADDING = 8;
 
 interface StickerPickerProps {
   onStickerSelect: (sticker: Sticker) => void;
+  /** Sticker width and height (default 64); shrinks if the cell is narrower */
+  size?: number;
+  /** Stickers per row (default 4) */
+  columns?: number;
 }
 
 export const StickerPicker: React.FC<StickerPickerProps> = ({
   onStickerSelect,
+  size = DEFAULT_STICKER_SIZE,
+  columns = DEFAULT_STICKER_COLUMNS,
 }) => {
+  const { width } = useWindowDimensions();
+  const numColumns = Math.max(1, Math.floor(columns));
+  const cellWidth = Math.floor((width - GRID_PADDING * 2) / numColumns);
+  const stickerSize = Math.max(
+    16,
+    Math.min(size, cellWidth - CELL_PADDING * 2)
+  );
+  const cellHeight = stickerSize + CELL_PADDING * 2;
+
   const [selectedPack, setSelectedPack] = useState(STICKER_PACKS[0].id);
 
   const currentPack = STICKER_PACKS.find(pack => pack.id === selectedPack);
@@ -37,13 +54,13 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   const renderSticker = useCallback(
     ({ item }: { item: Sticker }) => (
       <TouchableOpacity
-        style={styles.stickerButton}
+        style={[styles.stickerButton, { width: cellWidth, height: cellHeight }]}
         onPress={() => handleStickerPress(item)}
         activeOpacity={0.6}>
-        <StickerView sticker={item} size={STICKER_SIZE - 16} />
+        <StickerView sticker={item} size={stickerSize} />
       </TouchableOpacity>
     ),
-    [handleStickerPress]
+    [handleStickerPress, cellWidth, cellHeight, stickerSize]
   );
 
   const renderPackTab = useCallback(
@@ -65,10 +82,11 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   return (
     <View style={styles.container}>
       <FlatList
+        key={numColumns}
         data={currentPack?.stickers || []}
         renderItem={renderSticker}
         keyExtractor={item => item.id}
-        numColumns={NUM_COLUMNS}
+        numColumns={numColumns}
         contentContainerStyle={styles.stickerGrid}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="always"
@@ -87,15 +105,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   stickerGrid: {
-    paddingHorizontal: 4,
+    paddingHorizontal: GRID_PADDING,
     paddingTop: 8,
   },
   stickerButton: {
-    width: STICKER_SIZE,
-    height: STICKER_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 8,
   },
   packBar: {
     flexDirection: 'row',

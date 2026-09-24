@@ -25,6 +25,11 @@ export interface EmojiKeyboardProps {
   onBackspace: () => void;
   /** Shows the sticker tab when provided */
   onStickerSelect?: (sticker: Sticker) => void;
+  /** Show the emoji tab (default true). With stickers off too, nothing renders */
+  showEmoji?: boolean;
+  /** Sticker size and stickers per row, see StickerPicker */
+  stickerSize?: number;
+  stickerColumns?: number;
   /** Change to re-read recent emoji (e.g. each time the panel opens) */
   refreshKey?: number;
 }
@@ -36,9 +41,16 @@ export const EmojiKeyboard: React.FC<EmojiKeyboardProps> = ({
   onEmojiSelect,
   onBackspace,
   onStickerSelect,
+  showEmoji = true,
+  stickerSize,
+  stickerColumns,
   refreshKey,
 }) => {
   const [tab, setTab] = useState<Tab>('emoji');
+  const showStickers = !!onStickerSelect;
+  // A single enabled mode has no tabs: it is always the active one
+  const activeTab: Tab = !showEmoji ? 'sticker' : !showStickers ? 'emoji' : tab;
+  const hasHeader = activeTab === 'emoji' || (showEmoji && showStickers);
   const repeatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopRepeat = useCallback(() => {
@@ -58,7 +70,7 @@ export const EmojiKeyboard: React.FC<EmojiKeyboardProps> = ({
     Icon: React.ComponentType<any>,
     label: string
   ) => {
-    const active = tab === id;
+    const active = activeTab === id;
     return (
       <TouchableOpacity
         accessibilityLabel={label}
@@ -80,43 +92,53 @@ export const EmojiKeyboard: React.FC<EmojiKeyboardProps> = ({
 
   return (
     <View style={[styles.panel, { height, paddingBottom: bottomInset }]}>
-      <View
-        style={[
-          themeStyles.flexRow,
-          themeStyles.flexNullCenter,
-          styles.header,
-        ]}>
-        <View style={styles.headerSide} />
-        <View style={[themeStyles.flex1, themeStyles.flexCenter]}>
-          {onStickerSelect && (
-            <View
-              style={[themeStyles.flexRow, themeStyles.overflow, styles.tabs]}>
-              {renderTab('emoji', EmojiSVG, 'Emoji')}
-              {renderTab('sticker', StickerSVG, 'Stickers')}
-            </View>
-          )}
+      {hasHeader && (
+        <View
+          style={[
+            themeStyles.flexRow,
+            themeStyles.flexNullCenter,
+            styles.header,
+          ]}>
+          <View style={styles.headerSide} />
+          <View style={[themeStyles.flex1, themeStyles.flexCenter]}>
+            {showEmoji && showStickers && (
+              <View
+                style={[
+                  themeStyles.flexRow,
+                  themeStyles.overflow,
+                  styles.tabs,
+                ]}>
+                {renderTab('emoji', EmojiSVG, 'Emoji')}
+                {renderTab('sticker', StickerSVG, 'Stickers')}
+              </View>
+            )}
+          </View>
+          <View style={styles.headerSide}>
+            {activeTab === 'emoji' && (
+              <Pressable
+                accessibilityLabel="Backspace"
+                hitSlop={8}
+                style={({ pressed }) => [
+                  themeStyles.flexCenter,
+                  styles.backspace,
+                  pressed && styles.backspacePressed,
+                ]}
+                onPress={onBackspace}
+                onLongPress={startRepeat}
+                onPressOut={stopRepeat}>
+                <BackspaceSVG width={24} height={24} color={configSecondary} />
+              </Pressable>
+            )}
+          </View>
         </View>
-        <View style={styles.headerSide}>
-          {tab === 'emoji' && (
-            <Pressable
-              accessibilityLabel="Backspace"
-              hitSlop={8}
-              style={({ pressed }) => [
-                themeStyles.flexCenter,
-                styles.backspace,
-                pressed && styles.backspacePressed,
-              ]}
-              onPress={onBackspace}
-              onLongPress={startRepeat}
-              onPressOut={stopRepeat}>
-              <BackspaceSVG width={24} height={24} color={configSecondary} />
-            </Pressable>
-          )}
-        </View>
-      </View>
+      )}
 
-      {tab === 'sticker' && onStickerSelect ? (
-        <StickerPicker onStickerSelect={onStickerSelect} />
+      {activeTab === 'sticker' && onStickerSelect ? (
+        <StickerPicker
+          onStickerSelect={onStickerSelect}
+          size={stickerSize}
+          columns={stickerColumns}
+        />
       ) : (
         <EmojiPicker onEmojiSelect={onEmojiSelect} refreshKey={refreshKey} />
       )}
