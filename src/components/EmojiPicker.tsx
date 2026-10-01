@@ -10,7 +10,15 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { EMOJI_CATEGORIES, getRecentEmojis } from '../data/emojiData';
+import {
+  EMOJI_CATEGORIES,
+  getPreferredTone,
+  getRecentEmojis,
+  setPreferredTone,
+  SKIN_TONE_COUNT,
+  TONE_ENABLED,
+  withSkinTone,
+} from '../data/emojiData';
 import {
   colorAlpha,
   configSecondary,
@@ -55,29 +63,58 @@ interface EmojiPickerProps {
   refreshKey?: number;
 }
 
+const TONE_OPTION_SIZE = 44;
+
+interface ToneTarget {
+  emoji: string;
+  /** Where the long-pressed cell is, relative to the picker */
+  x: number;
+  y: number;
+}
+
 const EmojiRow = memo(
   ({
     emojis,
     size,
     onPress,
+    onLongPress,
+    rowOffset,
   }: {
     emojis: string[];
     size: number;
     onPress: (emoji: string) => void;
+    /** Long-pressed cell's column and the row's offset in the list */
+    onLongPress: (emoji: string, column: number, rowOffset: number) => void;
+    rowOffset: number;
+    /** Re-renders the row when a remembered tone changes */
+    toneVersion: number;
   }) => (
     <View style={themeStyles.flexRow}>
-      {emojis.map((emoji, index) => (
-        <Pressable
-          key={`${emoji}-${index}`}
-          style={({ pressed }) => [
-            themeStyles.flexCenter,
-            { width: size, height: size },
-            pressed && styles.pressed,
-          ]}
-          onPress={() => onPress(emoji)}>
-          <Text style={styles.emoji}>{emoji}</Text>
-        </Pressable>
-      ))}
+      {emojis.map((emoji, index) => {
+        const toned = TONE_ENABLED.has(emoji);
+        const shown = toned
+          ? withSkinTone(emoji, getPreferredTone(emoji))
+          : emoji;
+        return (
+          <Pressable
+            key={`${emoji}-${index}`}
+            accessibilityLabel={shown}
+            accessibilityHint={toned ? 'Long press for skin tones' : undefined}
+            style={({ pressed }) => [
+              themeStyles.flexCenter,
+              { width: size, height: size },
+              pressed && styles.pressed,
+            ]}
+            delayLongPress={300}
+            onPress={() => onPress(shown)}
+            onLongPress={
+              toned ? () => onLongPress(emoji, index, rowOffset) : undefined
+            }>
+            <Text style={styles.emoji}>{shown}</Text>
+            {toned && <View style={styles.toneMark} />}
+          </Pressable>
+        );
+      })}
     </View>
   )
 );
@@ -95,7 +132,33 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
   const cellSize = Math.floor(width / NUM_COLUMNS);
 
   const listRef = useRef<FlatList<Item>>(null);
+  const scrollY = useRef(0);
   const [activeCategory, setActiveCategory] = useState(EMOJI_CATEGORIES[0].id);
+  const [toneTarget, setToneTarget] = useState<ToneTarget | null>(null);
+  const [toneVersion, setToneVersion] = useState(0);
+
+  // Long press: open the tone bubble over the cell. Rows have fixed
+  // heights, so the cell's position follows from its row and column.
+  const openTones = useCallback(
+    (emoji: string, column: number, rowOffset: number) =>
+      setToneTarget({
+        emoji,
+        x: column * cellSize,
+        y: rowOffset - scrollY.current,
+      }),
+    [cellSize]
+  );
+
+  const pickTone = useCallback(
+    (tone: number) => {
+      if (!toneTarget) return;
+      setPreferredTone(toneTarget.emoji, tone);
+      setToneVersion(version => version + 1);
+      setToneTarget(null);
+      onEmojiSelect(withSkinTone(toneTarget.emoji, tone));
+    },
+    [toneTarget, onEmojiSelect]
+  );
 
   const { items, offsets, sectionStarts, sections } = useMemo(() => {
     const list: Item[] = [];
@@ -157,6 +220,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
 
   const handleScroll = useCallback(
     ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollY.current = nativeEvent.contentOffset.y;
       const y = nativeEvent.contentOffset.y + 1;
       let current = sectionStarts[0]?.id;
       for (const section of sectionStarts) {
@@ -181,7 +245,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: Item }) =>
+    ({ item, index }: { item: Item; index: number }) =>
       item.type === 'header' ? (
         <Text style={styles.sectionTitle}>{item.title}</Text>
       ) : (
@@ -189,16 +253,57 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
           emojis={item.emojis}
           size={cellSize}
           onPress={onEmojiSelect}
+          onLongPress={openTones}
+          rowOffset={offsets[index] ?? 0}
+          toneVersion={toneVersion}
         />
       ),
-    [cellSize, onEmojiSelect]
+    [cellSize, onEmojiSelect, openTones, offsets, toneVersion]
   );
+
+  const renderToneBubble = () => {
+    if (!toneTarget) return null;
+    const bubbleWidth = (SKIN_TONE_COUNT + 1) * TONE_OPTION_SIZE + 12;
+    const left = Math.min(
+      Math.max(toneTarget.x + cellSize / 2 - bubbleWidth / 2, 6),
+      width - bubbleWidth - 6
+    );
+    const top = Math.max(toneTarget.y - TONE_OPTION_SIZE - 16, 4);
+    return (
+      <>
+        <Pressable
+          accessibilityLabel="Close skin tones"
+          style={StyleSheet.absoluteFill}
+          onPress={() => setToneTarget(null)}
+        />
+        <View style={[themeStyles.flexRow, styles.toneBubble, { left, top }]}>
+          {Array.from({ length: SKIN_TONE_COUNT + 1 }, (_, tone) => (
+            <Pressable
+              key={tone}
+              accessibilityLabel={`Skin tone ${tone}`}
+              style={({ pressed }) => [
+                themeStyles.flexCenter,
+                styles.toneOption,
+                (pressed || getPreferredTone(toneTarget.emoji) === tone) &&
+                  styles.pressed,
+              ]}
+              onPress={() => pickTone(tone)}>
+              <Text style={styles.emoji}>
+                {withSkinTone(toneTarget.emoji, tone)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </>
+    );
+  };
 
   return (
     <View style={themeStyles.flex1}>
       <FlatList
         ref={listRef}
         data={items}
+        extraData={toneVersion}
         renderItem={renderItem}
         keyExtractor={item => item.key}
         getItemLayout={getItemLayout}
@@ -241,6 +346,8 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
           );
         })}
       </View>
+
+      {renderToneBubble()}
     </View>
   );
 };
@@ -252,6 +359,33 @@ const styles = StyleSheet.create({
   pressed: {
     backgroundColor: colorAlpha(primaryColor).shade10,
     borderRadius: 8,
+  },
+  // Small corner triangle marking emoji that have skin tones
+  toneMark: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderBottomWidth: 6,
+    borderLeftColor: 'transparent',
+    borderBottomColor: colorAlpha(configSecondary).shade50,
+  },
+  toneBubble: {
+    position: 'absolute',
+    padding: 6,
+    borderRadius: 14,
+    backgroundColor: 'white',
+    elevation: 6,
+    shadowColor: 'black',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+  },
+  toneOption: {
+    width: TONE_OPTION_SIZE,
+    height: TONE_OPTION_SIZE,
   },
   sectionTitle: {
     height: HEADER_HEIGHT,

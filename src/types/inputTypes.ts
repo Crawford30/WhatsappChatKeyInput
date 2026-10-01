@@ -63,6 +63,17 @@ export interface Message {
   viewOnceOpened?: boolean;
 }
 
+/**
+ * Key-value storage for remembering recent emoji and skin tones across app
+ * restarts, e.g. AsyncStorage or an MMKV wrapper. Either sync or async.
+ */
+export interface EmojiStorage {
+  getItem: (
+    key: string
+  ) => string | null | undefined | Promise<string | null | undefined>;
+  setItem: (key: string, value: string) => void | Promise<void>;
+}
+
 export interface EmojiCategory {
   id: string;
   name: string;

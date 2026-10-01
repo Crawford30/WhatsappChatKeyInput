@@ -47,7 +47,10 @@ const PANEL_ANIMATION = {
 // Height of the attachment menu content (excluding the bottom inset)
 export const ATTACH_PANEL_HEIGHT = 132;
 
-export type PanelKind = 'emoji' | 'attach';
+// Emoji search: field + results row, shown above the keyboard
+export const SEARCH_BAR_HEIGHT = 108;
+
+export type PanelKind = 'emoji' | 'attach' | 'search';
 
 interface UseEmojiKeyboardOptions {
   inputRef: RefObject<TextInput | null>;
@@ -76,6 +79,8 @@ export const useEmojiKeyboard = ({
   const { height: windowHeight } = useWindowDimensions();
 
   const [activePanel, setActivePanel] = useState<PanelKind | null>(null);
+  // For keyboard listeners, which outlive renders
+  const activePanelRef = useRef<PanelKind | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(lastKeyboardHeight);
 
@@ -104,6 +109,8 @@ export const useEmojiKeyboard = ({
   const attachPanelHeight = ATTACH_PANEL_HEIGHT + insets.bottom;
   const panelHeight =
     activePanel === 'attach' ? attachPanelHeight : emojiPanelHeight;
+  const panelHeightFor = (kind: PanelKind) =>
+    kind === 'attach' ? attachPanelHeight : emojiPanelHeight;
 
   // Turn keyboard-controller on only while the chat input is mounted, so the
   // rest of the app can keep Android's normal adjustResize behaviour
@@ -119,6 +126,7 @@ export const useEmojiKeyboard = ({
   // Keyboard-controller reports the keyboard as a negative translation
   const keyboard = useReanimatedKeyboardAnimation();
   const panelSpace = useSharedValue(0);
+  const searchSpace = useSharedValue(0);
   const idleInset = Math.max(insets.bottom, minBottomInset);
   const insetSpace = useSharedValue(idleInset);
   useEffect(() => {
@@ -126,11 +134,9 @@ export const useEmojiKeyboard = ({
   }, [idleInset, insetSpace]);
 
   const bottomAreaStyle = useAnimatedStyle(() => ({
-    height: Math.max(
-      -keyboard.height.value,
-      panelSpace.value,
-      insetSpace.value
-    ),
+    height:
+      searchSpace.value +
+      Math.max(-keyboard.height.value, panelSpace.value, insetSpace.value),
   }));
 
   // Latest heights for event handlers that outlive a render
@@ -147,20 +153,30 @@ export const useEmojiKeyboard = ({
    */
   const showPanel = useCallback(
     (kind: PanelKind | null) => {
-      const target = kind ? heightsRef.current[kind] : 0;
+      // Search keeps the emoji panel's space until the keyboard covers it
+      const target = !kind
+        ? 0
+        : kind === 'search'
+        ? panelSpace.value
+        : heightsRef.current[kind];
       // Under a visible keyboard the change can't be seen, so skip animating
       panelSpace.value = keyboardVisibleRef.current
         ? target
         : withTiming(target, PANEL_ANIMATION);
+      searchSpace.value = kind === 'search' ? SEARCH_BAR_HEIGHT : 0;
+      activePanelRef.current = kind;
       setActivePanel(kind);
     },
-    [panelSpace]
+    [panelSpace, searchSpace]
   );
 
   // Keep the space in step if the panel's height changes while it's open
   // (e.g. the first real keyboard height arrives)
   useEffect(() => {
-    if (activePanel) panelSpace.value = panelHeight;
+    if (activePanel && activePanel !== 'search') {
+      panelSpace.value = panelHeightFor(activePanel);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePanel, panelHeight, panelSpace]);
 
   useEffect(() => {
@@ -174,11 +190,23 @@ export const useEmojiKeyboard = ({
           setKeyboardHeight(event.height);
         }
       }),
-      // Close the panel only once the keyboard fully covers it
-      KeyboardEvents.addListener('keyboardDidShow', () => showPanel(null)),
+      // Close the panel only once the keyboard fully covers it; while
+      // searching, the search bar stays above the keyboard
+      KeyboardEvents.addListener('keyboardDidShow', () => {
+        if (activePanelRef.current === 'search') panelSpace.value = 0;
+        else showPanel(null);
+      }),
       KeyboardEvents.addListener('keyboardWillHide', () => {
         keyboardVisibleRef.current = false;
         setKeyboardVisible(false);
+        // Keyboard closed during search: back to the emoji panel, which
+        // takes the keyboard's place without the bar moving
+        if (activePanelRef.current === 'search') {
+          panelSpace.value = heightsRef.current.emoji;
+          searchSpace.value = 0;
+          activePanelRef.current = 'emoji';
+          setActivePanel('emoji');
+        }
       }),
     ];
 
@@ -186,7 +214,7 @@ export const useEmojiKeyboard = ({
       subscriptions.forEach(subscription => subscription.remove());
       if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
     };
-  }, [showPanel]);
+  }, [showPanel, panelSpace, searchSpace]);
 
   const closePanel = useCallback(() => showPanel(null), [showPanel]);
 
@@ -216,11 +244,16 @@ export const useEmojiKeyboard = ({
   // Call from the TextInput's onFocus (tapping the input while the panel is
   // open). The panel stays until the keyboard has slid over it.
   const handleInputFocus = useCallback(() => {
+    // From search, the keyboard is already up: just drop the search bar
+    if (activePanelRef.current === 'search') {
+      showPanel(null);
+      return;
+    }
     if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
     fallbackTimer.current = setTimeout(() => {
       if (!keyboardVisibleRef.current) closePanel();
     }, KEYBOARD_FALLBACK_MS);
-  }, [closePanel]);
+  }, [closePanel, showPanel]);
 
   const openSystemKeyboard = useCallback(() => {
     const { start, end } = selectionRef.current;
@@ -229,6 +262,9 @@ export const useEmojiKeyboard = ({
   }, [inputRef]);
 
   const isEmojiMode = activePanel === 'emoji' && !keyboardVisible;
+
+  // The search field focuses itself; its keyboard replaces the emoji grid
+  const openSearch = useCallback(() => showPanel('search'), [showPanel]);
 
   const openEmojiKeyboard = useCallback(() => openPanel('emoji'), [openPanel]);
 
@@ -280,6 +316,7 @@ export const useEmojiKeyboard = ({
     toggleEmojiKeyboard,
     toggleAttachMenu,
     openEmojiKeyboard,
+    openSearch,
     closePanel,
     insertEmoji,
     backspace,

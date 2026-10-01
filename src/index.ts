@@ -21,11 +21,14 @@ export { MediaViewer } from './components/media/MediaViewer';
 export { useEmojiKeyboard } from './hooks/useEmojiKeyboard';
 export { insertAtSelection, deleteBackward } from './Helpers/emojiInput';
 export { STICKER_PACKS } from './data/stickerData';
+export { searchEmojis, setEmojiStorage, withSkinTone } from './data/emojiData';
+export { EmojiSearch } from './components/EmojiSearch';
 
 export type {
   Attachment,
   AttachmentKind,
   AttachmentPickers,
+  EmojiStorage,
   Message,
   RecordedAudio,
   Sticker,

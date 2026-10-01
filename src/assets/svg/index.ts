@@ -76,3 +76,6 @@ export * from "./DoubleTickSVG";
 export * from "./HeadphonesSVG";
 export * from "./PencilSVG";
 export * from "./ViewOnceSVG";
+export * from "./ArrowBackSVG";
+export * from "./LockSVG";
+export * from "./ChevronUpSVG";

@@ -2,11 +2,11 @@
 
 WhatsApp-style chat input for React Native.
 
-- **Emoji keyboard** that swaps with the system keyboard at the same height. The input bar stays put while one slides over the other. Includes recents, categories and whole-emoji backspace (flags, skin tones, joined emoji)
+- **Emoji keyboard** that swaps with the system keyboard at the same height. The input bar stays put while one slides over the other. About 1,640 emoji in Unicode order, with recents, categories, **search**, **skin tones** (long press) and whole-emoji backspace (flags, skin tones, joined emoji)
 - **Stickers**: offline emoji packs, or your own image URLs
 - **Attachment menu**: document, camera, gallery, audio
 - **Photo editor**: crop and rotate, draw, text, emoji stickers, per-photo captions, view once
-- **Send / hold-to-record mic button**, or plug in your own recorder
+- **Send / hold-to-record mic button**: slide left to cancel, slide up to lock for hands-free recording; plug in your own recorder
 
 ## Installation
 
@@ -129,6 +129,7 @@ Picked photos open in the photo editor first. Unedited photos are sent as the or
 | `stickerColumns` | Stickers per row (default `4`) |
 | `barStyle` | Style merged over the input bar's default (12 sides, 6 top and bottom), e.g. `{ paddingHorizontal: 6 }` |
 | `minBottomInset` | Least space under the bar when the keyboard and panels are closed; the larger of this and the safe-area inset is used (default `6`) |
+| `emojiStorage` | `{ getItem, setItem }` (sync or async, e.g. AsyncStorage or MMKV). Remembers recent emoji and chosen skin tones across app restarts; in memory otherwise |
 | `placeholder` | Default `"Message"` |
 
 ### Using your own pickers
@@ -158,11 +159,30 @@ const recorder: VoiceRecorderAdapter = {
 <ChatInput recorder={recorder} onSendMessage={send} recipientName="Stephen" />;
 ```
 
-Hold the mic to record, release to send, slide left to cancel. Holds under a second are cancelled. The recording arrives as a `voice` message with `duration` and an `audio` `attachment`.
+Hold the mic to record, release to send, slide left to cancel. Slide up to the lock to keep recording without holding; the bar then shows a delete button and the mic turns into Send. A tap shorter than a second is cancelled and shows "Hold to record, release to send". The recording arrives as a `voice` message with `duration` and an `audio` `attachment`.
+
+### Emoji search, skin tones and recents
+
+- **Search**: the 🔍 button on the emoji panel opens a search field with a row of results above the keyboard. Results match names and keywords and insert into the message; closing the keyboard returns to the emoji panel.
+- **Skin tones**: emoji with a small corner mark take a skin tone. Long press to pick one; the grid then shows that emoji in your tone.
+- **Recents and tones** survive restarts when you pass `emojiStorage`:
+
+```tsx
+// uchat: MMKV via useStorage
+const {getData, storeData} = useStorage();
+const emojiStorage = useMemo(
+  () => ({getItem: getData, setItem: storeData}),
+  [getData, storeData],
+);
+
+<ChatInput emojiStorage={emojiStorage} ... />;
+```
 
 ### Other exports
 
-`MessageBubble`, `StickerView`, `MediaEditor`, `MediaViewer`, `EmojiKeyboard`, `EmojiPicker`, `StickerPicker`, `AttachmentMenu`, `useEmojiKeyboard`, `insertAtSelection`, `deleteBackward`, `STICKER_PACKS`, and the types `Message`, `Attachment`, `AttachmentPickers`, `Sticker`, `ChatInputProps`.
+`MessageBubble`, `StickerView`, `MediaEditor`, `MediaViewer`, `EmojiKeyboard`, `EmojiPicker`, `EmojiSearch`, `StickerPicker`, `AttachmentMenu`, `useEmojiKeyboard`, `insertAtSelection`, `deleteBackward`, `searchEmojis`, `withSkinTone`, `setEmojiStorage`, `STICKER_PACKS`, and the types `Message`, `Attachment`, `AttachmentPickers`, `EmojiStorage`, `Sticker`, `ChatInputProps`.
+
+Emoji names and keywords are adapted from the rn-emoji-keyboard dataset (MIT, © The Widlarz Group); the package doesn't depend on it.
 
 ## Using it in uchat
 

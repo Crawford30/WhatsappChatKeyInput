@@ -1,7 +1,14 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { configSecondary, primaryColor } from '../assets/style/Colors';
 import { styles as themeStyles } from '../assets/style/Styles';
+import { TrashSVG } from '../assets/svg/TrashSVG';
 import { formatDuration } from '../Helpers/helper';
 import type { VoiceRecording } from '../types/inputTypes';
 
@@ -10,12 +17,17 @@ interface VoiceRecorderProps {
   /** Horizontal drag of the mic button (<= 0), driven by the parent's gesture */
   slideX: Animated.Value;
   cancelThreshold: number;
+  /** Locked (hands-free): show a delete button instead of the slide hint */
+  locked?: boolean;
+  onDelete?: () => void;
 }
 
 export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   recording,
   slideX,
   cancelThreshold,
+  locked,
+  onDelete,
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -73,13 +85,23 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           />
         ))}
       </View>
-      <Animated.Text
-        style={[
-          styles.slideText,
-          { opacity: hintOpacity, transform: [{ translateX: slideX }] },
-        ]}>
-        {'‹  Slide to cancel'}
-      </Animated.Text>
+      {locked ? (
+        <TouchableOpacity
+          accessibilityLabel="Delete recording"
+          hitSlop={8}
+          style={styles.delete}
+          onPress={onDelete}>
+          <TrashSVG width={22} height={22} color="#FF3B30" />
+        </TouchableOpacity>
+      ) : (
+        <Animated.Text
+          style={[
+            styles.slideText,
+            { opacity: hintOpacity, transform: [{ translateX: slideX }] },
+          ]}>
+          {'‹  Slide to cancel'}
+        </Animated.Text>
+      )}
     </View>
   );
 };
@@ -111,6 +133,10 @@ const styles = StyleSheet.create({
     width: 3,
     backgroundColor: primaryColor,
     borderRadius: 1.5,
+  },
+  delete: {
+    marginLeft: 12,
+    padding: 4,
   },
   slideText: {
     fontSize: 14,

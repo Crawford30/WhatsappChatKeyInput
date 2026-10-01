@@ -11,6 +11,7 @@ import {
   PanResponder,
   StyleProp,
   StyleSheet,
+  Text,
   TextInput,
   TextInputProps,
   TouchableOpacity,
@@ -22,15 +23,19 @@ import { configSecondary, primaryColor } from '../assets/style/Colors';
 import { styles as themeStyles } from '../assets/style/Styles';
 import { AttachSVG } from '../assets/svg/AttachSVG';
 import { CameraSVG } from '../assets/svg/CameraSVG';
+import { ChevronUpSVG } from '../assets/svg/ChevronUpSVG';
+import { LockSVG } from '../assets/svg/LockSVG';
 import { EmojiSVG } from '../assets/svg/EmojiSVG';
 import { KeyboardSVG } from '../assets/svg/KeyboardSVG';
 import { MicSVG } from '../assets/svg/MicSVG';
 import { SendSVG } from '../assets/svg/SendSVG';
-import { useEmojiKeyboard } from '../hooks/useEmojiKeyboard';
+import { setEmojiStorage } from '../data/emojiData';
+import { SEARCH_BAR_HEIGHT, useEmojiKeyboard } from '../hooks/useEmojiKeyboard';
 import { useVoiceRecording } from '../hooks/useInputHook';
 import type {
   Attachment,
   AttachmentPickers,
+  EmojiStorage,
   Message,
   Sticker,
   VoiceRecorderAdapter,
@@ -38,9 +43,13 @@ import type {
 import { AttachmentMenu } from './AttachmentMenu';
 import { EditedImage, MediaEditor } from './media/MediaEditor';
 import { EmojiKeyboard } from './EmojiKeyboard';
+import { EmojiSearch } from './EmojiSearch';
 import { VoiceRecorder } from './VoiceRecorder';
 
 const CANCEL_THRESHOLD = -120;
+// Slide up this far while holding the mic to keep recording hands-free
+const LOCK_THRESHOLD = -80;
+const TAP_HINT_MS = 2000;
 const ICON_SIZE = 24;
 
 export interface ChatInputProps {
@@ -82,6 +91,12 @@ export interface ChatInputProps {
   barStyle?: StyleProp<ViewStyle>;
   /** Least space under the bar when the keyboard and panels are closed. Wins over the safe-area inset only when larger (default 6) */
   minBottomInset?: number;
+  /**
+   * Remembers recent emoji and skin tones across app restarts, e.g.
+   * AsyncStorage or an MMKV wrapper ({ getItem, setItem }). In memory
+   * otherwise.
+   */
+  emojiStorage?: EmojiStorage;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -103,7 +118,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   stickerColumns,
   barStyle,
   minBottomInset,
+  emojiStorage,
 }) => {
+  useEffect(() => {
+    setEmojiStorage(emojiStorage);
+  }, [emojiStorage]);
+
   const [ownText, setOwnText] = useState('');
   const text = value ?? ownText;
   const setText = useCallback(
@@ -224,6 +244,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Hold the mic to record, release to send, slide left to cancel. The
   // responder is created once, so it reads the latest handlers from a ref.
   const slideX = useRef(new Animated.Value(0)).current;
+  const lockY = useRef(new Animated.Value(0)).current;
+  const [locked, setLocked] = useState(false);
+  const lockedRef = useRef(false);
+  // A press on the button while locked sends the recording
+  const sendTapRef = useRef(false);
+  const [showTapHint, setShowTapHint] = useState(false);
+  useEffect(() => {
+    if (!showTapHint) return;
+    const timer = setTimeout(() => setShowTapHint(false), TAP_HINT_MS);
+    return () => clearTimeout(timer);
+  }, [showTapHint]);
   // The app's recorder can change between renders (its callbacks often
   // depend on its own state), so always call the latest one
   const recorderRef = useRef(recorder);
@@ -231,12 +262,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Resolves to whether the real recorder actually started
   const recorderStarted = useRef<Promise<boolean> | null>(null);
 
+  const setLock = (next: boolean) => {
+    lockedRef.current = next;
+    setLocked(next);
+    slideX.setValue(0);
+    lockY.setValue(0);
+  };
+
   const recordingHandlers = useRef({
     startRecording: () => {},
     finishRecording: (_send: boolean) => {},
+    lock: () => {},
   });
   recordingHandlers.current = {
+    lock: () => setLock(true),
     startRecording: () => {
+      setShowTapHint(false);
+      setLock(false);
       startRecording();
       const current = recorderRef.current;
       recorderStarted.current = current
@@ -254,9 +296,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         : null;
     },
     finishRecording: async (send: boolean) => {
-      slideX.setValue(0);
+      setLock(false);
       // The on-screen timer ticks each second; under 1s counts as a tap
       const longEnough = send && duration > 0;
+      if (send && !longEnough) setShowTapHint(true);
       if (send) stopRecording();
       else cancelRecording();
 
@@ -304,15 +347,39 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const micResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => recordingHandlers.current.startRecording(),
-      onPanResponderMove: (_, gesture) =>
-        slideX.setValue(Math.min(0, gesture.dx)),
-      onPanResponderRelease: (_, gesture) =>
+      onPanResponderGrant: () => {
+        if (lockedRef.current) {
+          sendTapRef.current = true;
+          return;
+        }
+        recordingHandlers.current.startRecording();
+      },
+      onPanResponderMove: (_, gesture) => {
+        if (lockedRef.current) return;
+        slideX.setValue(Math.min(0, gesture.dx));
+        lockY.setValue(Math.min(0, gesture.dy));
+        // Up (and not mostly sideways): lock hands-free
+        if (gesture.dy < LOCK_THRESHOLD && gesture.dx > CANCEL_THRESHOLD / 2) {
+          recordingHandlers.current.lock();
+        }
+      },
+      // A locked recording carries on after the finger lifts
+      onPanResponderRelease: (_, gesture) => {
+        if (sendTapRef.current) {
+          sendTapRef.current = false;
+          recordingHandlers.current.finishRecording(true);
+          return;
+        }
+        if (lockedRef.current) return;
         recordingHandlers.current.finishRecording(
           gesture.dx > CANCEL_THRESHOLD
-        ),
-      onPanResponderTerminate: () =>
-        recordingHandlers.current.finishRecording(false),
+        );
+      },
+      onPanResponderTerminate: () => {
+        sendTapRef.current = false;
+        if (lockedRef.current) return;
+        recordingHandlers.current.finishRecording(false);
+      },
     })
   ).current;
 
@@ -327,6 +394,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               recording={{ isRecording, duration, amplitude }}
               slideX={slideX}
               cancelThreshold={CANCEL_THRESHOLD}
+              locked={locked}
+              onDelete={() => recordingHandlers.current.finishRecording(false)}
             />
           ) : (
             <>
@@ -423,24 +492,77 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         ) : voiceButton ? (
           voiceButton
         ) : (
-          <View
-            accessibilityLabel="Hold to record"
-            style={[
-              themeStyles.flexCenter,
-              themeStyles.primaryBg,
-              styles.actionButton,
-              isRecording && styles.actionButtonRecording,
-            ]}
-            {...micResponder.panHandlers}>
-            <MicSVG width={ICON_SIZE} height={ICON_SIZE} color="white" />
+          <View>
+            {isRecording && !locked && (
+              // Slide up to this to lock the recording
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  themeStyles.flexCenter,
+                  styles.lockHint,
+                  { transform: [{ translateY: lockY }] },
+                ]}>
+                <LockSVG width={18} height={18} color={iconColor} />
+                <ChevronUpSVG width={18} height={18} color={iconColor} />
+              </Animated.View>
+            )}
+            {/* One view for the whole gesture: it turns into Send once the
+                recording is locked, without dropping the touch */}
+            <View
+              testID="mic-button"
+              accessibilityRole="button"
+              accessibilityLabel={locked ? 'Send recording' : 'Hold to record'}
+              accessibilityHint={
+                locked
+                  ? undefined
+                  : 'Hold to record a voice message, release to send'
+              }
+              onAccessibilityTap={
+                locked
+                  ? () => recordingHandlers.current.finishRecording(true)
+                  : undefined
+              }
+              style={[
+                themeStyles.flexCenter,
+                themeStyles.primaryBg,
+                styles.actionButton,
+                isRecording && !locked && styles.actionButtonRecording,
+              ]}
+              {...micResponder.panHandlers}>
+              {locked ? (
+                <SendSVG
+                  width={22}
+                  height={22}
+                  color="white"
+                  style={styles.sendIcon}
+                />
+              ) : (
+                <MicSVG width={ICON_SIZE} height={ICON_SIZE} color="white" />
+              )}
+            </View>
           </View>
         )}
       </View>
+
+      {showTapHint && (
+        <View pointerEvents="none" style={styles.tapHint}>
+          <Text style={styles.tapHintText}>
+            Hold to record, release to send
+          </Text>
+        </View>
+      )}
 
       {/* Keyboard / panel space; panels hang from its top edge so they move
           with the input bar */}
       <Reanimated.View
         style={[styles.bottomArea, emojiKeyboard.bottomAreaStyle]}>
+        {emojiKeyboard.activePanel === 'search' && (
+          <EmojiSearch
+            height={SEARCH_BAR_HEIGHT}
+            onEmojiSelect={emojiKeyboard.insertEmoji}
+            onClose={emojiKeyboard.openEmojiKeyboard}
+          />
+        )}
         {emojiKeyboard.activePanel === 'attach' && pickers && (
           <AttachmentMenu
             height={emojiKeyboard.panelProps.height}
@@ -458,6 +580,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <EmojiKeyboard
               {...emojiKeyboard.panelProps}
               refreshKey={emojiOpens}
+              onSearch={emojis ? emojiKeyboard.openSearch : undefined}
               onStickerSelect={stickers ? handleStickerSelect : undefined}
               showEmoji={emojis}
               stickerSize={stickerSize}
@@ -524,6 +647,34 @@ const styles = StyleSheet.create({
   },
   sendIcon: {
     marginLeft: 3,
+  },
+  lockHint: {
+    position: 'absolute',
+    bottom: 64,
+    alignSelf: 'center',
+    width: 40,
+    paddingVertical: 8,
+    gap: 2,
+    borderRadius: 20,
+    backgroundColor: 'white',
+    elevation: 3,
+    shadowColor: 'black',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+  tapHint: {
+    position: 'absolute',
+    right: 12,
+    bottom: '100%',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  tapHintText: {
+    color: 'white',
+    fontSize: 13,
   },
   bottomArea: {
     overflow: 'hidden',

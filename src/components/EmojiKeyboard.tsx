@@ -8,6 +8,7 @@ import {
 import { styles as themeStyles } from '../assets/style/Styles';
 import { BackspaceSVG } from '../assets/svg/BackspaceSVG';
 import { EmojiSVG } from '../assets/svg/EmojiSVG';
+import { SearchSVG } from '../assets/svg/SearchSVG';
 import { StickerSVG } from '../assets/svg/StickerSVG';
 import type { Sticker } from '../types/inputTypes';
 import { EmojiPicker } from './EmojiPicker';
@@ -32,6 +33,8 @@ export interface EmojiKeyboardProps {
   stickerColumns?: number;
   /** Change to re-read recent emoji (e.g. each time the panel opens) */
   refreshKey?: number;
+  /** Shows a search button on the emoji tab */
+  onSearch?: () => void;
 }
 
 /** Panel that replaces the system keyboard: emoji grid and stickers */
@@ -45,6 +48,7 @@ export const EmojiKeyboard: React.FC<EmojiKeyboardProps> = ({
   stickerSize,
   stickerColumns,
   refreshKey,
+  onSearch,
 }) => {
   const [tab, setTab] = useState<Tab>('emoji');
   const showStickers = !!onStickerSelect;
@@ -99,7 +103,21 @@ export const EmojiKeyboard: React.FC<EmojiKeyboardProps> = ({
             themeStyles.flexNullCenter,
             styles.header,
           ]}>
-          <View style={styles.headerSide} />
+          <View style={styles.headerSide}>
+            {activeTab === 'emoji' && onSearch && (
+              <Pressable
+                accessibilityLabel="Search emoji"
+                hitSlop={8}
+                style={({ pressed }) => [
+                  themeStyles.flexCenter,
+                  styles.backspace,
+                  pressed && styles.backspacePressed,
+                ]}
+                onPress={onSearch}>
+                <SearchSVG width={20} height={20} color={configSecondary} />
+              </Pressable>
+            )}
+          </View>
           <View style={[themeStyles.flex1, themeStyles.flexCenter]}>
             {showEmoji && showStickers && (
               <View

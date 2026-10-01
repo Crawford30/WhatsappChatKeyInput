@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, TextInput } from 'react-native';
+import { Image, Text, TextInput } from 'react-native';
 import { KeyboardController } from 'react-native-keyboard-controller';
 import { captureRef } from 'react-native-view-shot';
 import ReactTestRenderer, { act } from 'react-test-renderer';
@@ -311,8 +311,8 @@ describe('defaultPickers.openCamera on Android', () => {
 
 describe('recorder adapter', () => {
   // Minimal touch history so PanResponder's gesture maths works
-  const touch = (x: number) => ({
-    nativeEvent: { touches: [{}], changedTouches: [{}], pageX: x, pageY: 0 },
+  const touch = (x: number, y = 0) => ({
+    nativeEvent: { touches: [{}], changedTouches: [{}], pageX: x, pageY: y },
     touchHistory: {
       numberActiveTouches: 1,
       indexOfSingleActiveTouch: 0,
@@ -324,7 +324,7 @@ describe('recorder adapter', () => {
           startPageY: 0,
           startTimeStamp: 0,
           currentPageX: x,
-          currentPageY: 0,
+          currentPageY: y,
           currentTimeStamp: Date.now(),
           previousPageX: 0,
           previousPageY: 0,
@@ -360,11 +360,18 @@ describe('recorder adapter', () => {
     });
     const mic = () =>
       renderer.root.find(
-        n =>
-          n.props.accessibilityLabel === 'Hold to record' &&
-          typeof n.type === 'string'
+        n => n.props.testID === 'mic-button' && typeof n.type === 'string'
       );
-    return { recorder, onSendMessage, mic };
+    const label = (text: string) =>
+      renderer.root.findAll(
+        n => n.props.accessibilityLabel === text && typeof n.type !== 'string'
+      );
+    const texts = () =>
+      renderer.root
+        .findAllByType(Text)
+        .map(t => t.props.children)
+        .flat();
+    return { recorder, onSendMessage, mic, label, texts };
   };
 
   beforeEach(() => jest.useFakeTimers());
@@ -407,5 +414,48 @@ describe('recorder adapter', () => {
     await act(async () => mic().props.onResponderRelease(touch(-200)));
     expect(recorder.cancel).toHaveBeenCalled();
     expect(onSendMessage).not.toHaveBeenCalled();
+  });
+
+  test('sliding up locks: recording continues after release, then Send', async () => {
+    const { recorder, onSendMessage, mic, label } = await setup();
+    await act(async () => mic().props.onResponderGrant(touch(0)));
+    await act(async () => mic().props.onResponderMove(touch(0, -100)));
+    await act(async () => mic().props.onResponderRelease(touch(0, -100)));
+
+    // Still recording, nothing sent yet
+    expect(recorder.stop).not.toHaveBeenCalled();
+    expect(recorder.cancel).not.toHaveBeenCalled();
+    expect(label('Send recording')).toHaveLength(1);
+    expect(label('Delete recording').length).toBeGreaterThan(0);
+
+    await act(async () => jest.advanceTimersByTime(3000));
+    // Tap the (now Send) button
+    await act(async () => mic().props.onResponderGrant(touch(0)));
+    await act(async () => mic().props.onResponderRelease(touch(0)));
+    expect(recorder.stop).toHaveBeenCalled();
+    expect(onSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'voice' })
+    );
+    expect(label('Hold to record')).toHaveLength(1);
+  });
+
+  test('a locked recording can be deleted', async () => {
+    const { recorder, onSendMessage, mic, label } = await setup();
+    await act(async () => mic().props.onResponderGrant(touch(0)));
+    await act(async () => mic().props.onResponderMove(touch(0, -100)));
+    await act(async () => mic().props.onResponderRelease(touch(0, -100)));
+    await act(async () => jest.advanceTimersByTime(3000));
+    await act(async () => label('Delete recording')[0].props.onPress());
+    expect(recorder.cancel).toHaveBeenCalled();
+    expect(onSendMessage).not.toHaveBeenCalled();
+  });
+
+  test('a quick tap shows how to record, then the hint goes away', async () => {
+    const { mic, texts } = await setup();
+    await act(async () => mic().props.onResponderGrant(touch(0)));
+    await act(async () => mic().props.onResponderRelease(touch(0)));
+    expect(texts()).toContain('Hold to record, release to send');
+    await act(async () => jest.advanceTimersByTime(2500));
+    expect(texts()).not.toContain('Hold to record, release to send');
   });
 });
