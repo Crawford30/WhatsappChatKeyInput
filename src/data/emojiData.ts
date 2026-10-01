@@ -130,12 +130,17 @@ const read = async <T>(key: string): Promise<T | null> => {
 };
 
 /**
- * Use `next` to remember recents and skin tones across app restarts. Loads
- * once per storage; later calls with the same storage are no-ops.
+ * Use `next` to remember recents and skin tones across app restarts. Saved
+ * values load on the first call; later calls only replace where changes are
+ * saved.
  */
 export const setEmojiStorage = (next?: EmojiStorage): Promise<void> => {
-  if (!next || next === storage) return loaded ?? Promise.resolve();
+  if (!next) return loaded ?? Promise.resolve();
+  // Load once; a new object later (e.g. recreated each render) just takes
+  // over saving, without reloading over what's in memory
+  const first = !storage;
   storage = next;
+  if (!first) return loaded ?? Promise.resolve();
   loaded = (async () => {
     const [recents, tones] = await Promise.all([
       read<string[]>(RECENTS_KEY),

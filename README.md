@@ -168,12 +168,13 @@ Hold the mic to record, release to send, slide left to cancel. Slide up to the l
 - **Recents and tones** survive restarts when you pass `emojiStorage`:
 
 ```tsx
-// uchat: MMKV via useStorage
-const {getData, storeData} = useStorage();
-const emojiStorage = useMemo(
-  () => ({getItem: getData, setItem: storeData}),
-  [getData, storeData],
-);
+// uchat: MMKV. Create it once (outside the component)
+import {globalStorage} from '@dev-tech/uchat-shared-lib/src/hooks/common/useStorage';
+
+const emojiStorage = {
+  getItem: (key: string) => globalStorage.getString(key),
+  setItem: (key: string, value: string) => globalStorage.set(key, value),
+};
 
 <ChatInput emojiStorage={emojiStorage} ... />;
 ```

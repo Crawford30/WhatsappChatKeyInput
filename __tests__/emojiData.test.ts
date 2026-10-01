@@ -103,6 +103,23 @@ describe('storage', () => {
     });
   });
 
+  test('a new storage object later does not reload over memory', async () => {
+    await jest.isolateModulesAsync(async () => {
+      const data = require('../src/data/emojiData');
+      await data.setEmojiStorage({
+        getItem: () => JSON.stringify(['🦁']),
+        setItem: () => {},
+      });
+      data.addRecentEmoji('🎉');
+      const second = { getItem: jest.fn(() => '["🐍"]'), setItem: jest.fn() };
+      await data.setEmojiStorage(second);
+      expect(second.getItem).not.toHaveBeenCalled();
+      expect(data.getRecentEmojis()[0]).toBe('🎉');
+      data.addRecentEmoji('🚀');
+      expect(second.setItem).toHaveBeenCalled();
+    });
+  });
+
   test('a broken storage falls back to defaults without throwing', async () => {
     await jest.isolateModulesAsync(async () => {
       const data = require('../src/data/emojiData');
