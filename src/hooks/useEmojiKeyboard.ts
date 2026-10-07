@@ -257,6 +257,12 @@ export const useEmojiKeyboard = ({
 
   const openSystemKeyboard = useCallback(() => {
     const { start, end } = selectionRef.current;
+    // dismiss() resigned the native first responder without RN's TextInput
+    // knowing, so plain inputRef.focus() can no-op on iOS (RN thinks it's
+    // still focused and skips the native call). setFocusTo('current')
+    // re-asserts native focus on the already-focused input, which reopens
+    // the system keyboard reliably on both platforms.
+    KeyboardController.setFocusTo('current');
     inputRef.current?.focus();
     inputRef.current?.setSelection(start, end);
   }, [inputRef]);
