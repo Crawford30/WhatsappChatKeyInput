@@ -155,10 +155,11 @@ export const useEmojiKeyboard = ({
       height:
         searchSpace.value +
         Math.max(
-          // Gap only applies once the keyboard has actual height, not to
-          // the idle/panel states (those have their own sizing already)
+          // Gap applies whenever the keyboard or a panel is actually
+          // showing, not to the idle state (insetSpace already has its own
+          // sizing — adding the gap there would just inflate the idle gap)
           keyboardSpace > 0 ? keyboardSpace + keyboardGap : 0,
-          panelSpace.value,
+          panelSpace.value > 0 ? panelSpace.value + keyboardGap : 0,
           insetSpace.value
         ),
     };
@@ -300,17 +301,19 @@ export const useEmojiKeyboard = ({
 
   const openSystemKeyboard = useCallback(() => {
     const { start, end } = selectionRef.current;
-    // The input never actually lost native focus (openPanel's dismiss used
-    // keepFocus: true), so this flip alone is enough: RN's own
-    // setShowSoftInputOnFocus clears the custom inputView and, seeing the
-    // view is still first responder, reloads it to the real keyboard in
-    // the same native call — no race against a separate imperative command.
+    // Close the panel on this user-initiated tap directly, instead of
+    // waiting for the real keyboard's keyboardDidShow to do it. That event
+    // is not a reliable signal here (confirmed by on-device testing: the
+    // real keyboard can fail to re-appear after a hide/show round trip),
+    // so the panel was getting stuck open indefinitely. bottomAreaStyle
+    // still reserves the real keyboard's height if and when it does show
+    // (Math.max against -keyboard.height.value), so this doesn't cause a
+    // visible jump.
+    showPanel(null);
     setNativeKeyboardEnabled(true);
-    // Defensive fallback for the rare case the input did lose focus (e.g.
-    // keepFocus's native guard silently no-op'd); harmless no-op otherwise.
     inputRef.current?.focus();
     inputRef.current?.setSelection(start, end);
-  }, [inputRef]);
+  }, [inputRef, showPanel]);
 
   const isEmojiMode = activePanel === 'emoji' && !keyboardVisible;
 
@@ -365,6 +368,7 @@ export const useEmojiKeyboard = ({
     activePanel,
     isEmojiMode,
     nativeKeyboardEnabled,
+    keyboardGap, // so ChatInput's panel spacer matches the height math above exactly
     toggleEmojiKeyboard,
     toggleAttachMenu,
     openEmojiKeyboard,

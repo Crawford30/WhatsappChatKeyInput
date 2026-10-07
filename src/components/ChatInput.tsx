@@ -561,9 +561,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       )}
 
       {/* Keyboard / panel space; panels hang from its top edge so they move
-          with the input bar */}
+          with the input bar. bottomAreaStyle's height already includes
+          keyboardGap on top of the panel's own height — this spacer is what
+          actually pushes the panel down to reveal that gap instead of it
+          silently extending the (invisible, already-clipped) space below
+          the panel instead. */}
       <Reanimated.View
         style={[styles.bottomArea, emojiKeyboard.bottomAreaStyle]}>
+        {!!emojiKeyboard.activePanel && (
+          <View style={{ height: emojiKeyboard.keyboardGap }} />
+        )}
         {emojiKeyboard.activePanel === 'search' && (
           <EmojiSearch
             height={SEARCH_BAR_HEIGHT}
