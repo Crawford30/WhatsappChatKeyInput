@@ -93,6 +93,8 @@ export interface ChatInputProps {
   barStyle?: StyleProp<ViewStyle>;
   /** Least space under the bar when the keyboard and panels are closed. Wins over the safe-area inset only when larger (default 6) */
   minBottomInset?: number;
+  /** Space kept between the bar and the system keyboard's top edge, like WhatsApp's thin gap (default 8) */
+  keyboardGap?: number;
   /**
    * Remembers recent emoji and skin tones across app restarts, e.g.
    * AsyncStorage or an MMKV wrapper ({ getItem, setItem }). In memory
@@ -121,6 +123,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   stickerColumns,
   barStyle,
   minBottomInset,
+  keyboardGap,
   emojiStorage,
 }) => {
   useEffect(() => {
@@ -146,6 +149,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     value: text,
     onChangeText: setText,
     minBottomInset,
+    keyboardGap,
   });
 
   // The emoji panel stays mounted after first use so reopening is instant;

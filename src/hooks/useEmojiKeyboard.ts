@@ -34,6 +34,10 @@ const DEFAULT_PANEL_RATIO = 0.33;
 // Remembered across screens so the panel matches the keyboard from the start
 export const DEFAULT_MIN_BOTTOM_INSET = 6;
 
+// WhatsApp leaves a thin sliver of chat background between the bar and the
+// keyboard's top edge instead of butting straight up against it
+export const DEFAULT_KEYBOARD_GAP = 8;
+
 let lastKeyboardHeight = 0;
 
 // A hardware keyboard never shows the software one after focus
@@ -59,6 +63,8 @@ interface UseEmojiKeyboardOptions {
   onChangeText: (text: string) => void;
   /** Least space kept under the input bar when nothing else fills it */
   minBottomInset?: number;
+  /** Extra space kept between the bar and the system keyboard's top edge */
+  keyboardGap?: number;
 }
 
 /**
@@ -75,6 +81,7 @@ export const useEmojiKeyboard = ({
   value,
   onChangeText,
   minBottomInset = DEFAULT_MIN_BOTTOM_INSET,
+  keyboardGap = DEFAULT_KEYBOARD_GAP,
 }: UseEmojiKeyboardOptions) => {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -142,11 +149,20 @@ export const useEmojiKeyboard = ({
     insetSpace.value = idleInset;
   }, [idleInset, insetSpace]);
 
-  const bottomAreaStyle = useAnimatedStyle(() => ({
-    height:
-      searchSpace.value +
-      Math.max(-keyboard.height.value, panelSpace.value, insetSpace.value),
-  }));
+  const bottomAreaStyle = useAnimatedStyle(() => {
+    const keyboardSpace = -keyboard.height.value;
+    return {
+      height:
+        searchSpace.value +
+        Math.max(
+          // Gap only applies once the keyboard has actual height, not to
+          // the idle/panel states (those have their own sizing already)
+          keyboardSpace > 0 ? keyboardSpace + keyboardGap : 0,
+          panelSpace.value,
+          insetSpace.value
+        ),
+    };
+  });
 
   // Latest heights for event handlers that outlive a render
   const heightsRef = useRef({
