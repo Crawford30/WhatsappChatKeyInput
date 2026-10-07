@@ -77,6 +77,8 @@ export interface ChatInputProps {
   voiceButton?: React.ReactNode;
   /** Show the sticker tab in the emoji panel (default true) */
   stickers?: boolean;
+  /** Show the view-once toggle in the photo editor (default true) */
+  viewOnce?: boolean;
   /**
    * Show the emoji tab in the panel (default true). With `emojis` and
    * `stickers` both off the emoji button is hidden; with only one on, the
@@ -87,7 +89,7 @@ export interface ChatInputProps {
   stickerSize?: number;
   /** Stickers per row (default 4) */
   stickerColumns?: number;
-  /** Merged over the bar's default style (12 sides, 6 top and bottom), e.g. `{ paddingHorizontal: 6 }` */
+  /** Merged over the bar's default style (12 sides, 6 top, 0 bottom — the bottom is reserved separately), e.g. `{ paddingHorizontal: 6 }` */
   barStyle?: StyleProp<ViewStyle>;
   /** Least space under the bar when the keyboard and panels are closed. Wins over the safe-area inset only when larger (default 6) */
   minBottomInset?: number;
@@ -113,6 +115,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   recorder,
   voiceButton,
   stickers = true,
+  viewOnce = true,
   emojis = true,
   stickerSize,
   stickerColumns,
@@ -597,6 +600,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           recipientName={recipientName}
           onClose={() => setEditingImages([])}
           onSend={handleEditedImages}
+          viewOnceEnabled={viewOnce}
         />
       )}
     </View>
@@ -607,7 +611,11 @@ const styles = StyleSheet.create({
   bar: {
     alignItems: 'flex-end',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingTop: 6,
+    // The space below the bar is reserved separately (see bottomArea,
+    // sized off the safe-area inset / keyboard / panel height), so an
+    // equal bottom padding here would double that clearance on top of it.
+    paddingBottom: 0,
     gap: 6,
   },
   pill: {

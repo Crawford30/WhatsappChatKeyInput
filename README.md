@@ -127,7 +127,8 @@ Picked photos open in the photo editor first. Unedited photos are sent as the or
 | `emojis` | Show the emoji tab (default `true`). With only one of `emojis` / `stickers` on, the panel shows just that one without tabs; with both off the emoji button is hidden |
 | `stickerSize` | Sticker width and height in dp (default `64`, never larger than its cell) |
 | `stickerColumns` | Stickers per row (default `4`) |
-| `barStyle` | Style merged over the input bar's default (12 sides, 6 top and bottom), e.g. `{ paddingHorizontal: 6 }` |
+| `viewOnce` | Show the view-once toggle in the photo editor (default `true`) |
+| `barStyle` | Style merged over the input bar's default (12 sides, 6 top, 0 bottom — the bottom is reserved separately), e.g. `{ paddingHorizontal: 6 }` |
 | `minBottomInset` | Least space under the bar when the keyboard and panels are closed; the larger of this and the safe-area inset is used (default `6`) |
 | `emojiStorage` | `{ getItem, setItem }` (sync or async, e.g. AsyncStorage or MMKV). Remembers recent emoji and chosen skin tones across app restarts; in memory otherwise |
 | `placeholder` | Default `"Message"` |

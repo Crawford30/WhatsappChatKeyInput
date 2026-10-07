@@ -76,6 +76,8 @@ interface MediaEditorProps {
   recipientName: string;
   onClose: () => void;
   onSend: (items: EditedImage[], viewOnce: boolean) => void;
+  /** Show the view-once toggle on the caption row (default true) */
+  viewOnceEnabled?: boolean;
 }
 
 const RoundButton = ({
@@ -113,6 +115,7 @@ export const MediaEditor: React.FC<MediaEditorProps> = ({
   recipientName,
   onClose,
   onSend,
+  viewOnceEnabled = true,
 }) => {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -496,17 +499,19 @@ export const MediaEditor: React.FC<MediaEditorProps> = ({
           multiline
           style={[themeStyles.flex1, styles.captionInput]}
         />
-        <TouchableOpacity
-          accessibilityLabel={viewOnce ? 'View once on' : 'View once off'}
-          style={styles.viewOnce}
-          onPress={() => setViewOnce(v => !v)}>
-          <ViewOnceSVG
-            width={26}
-            height={26}
-            filled={viewOnce}
-            color={viewOnce ? primaryColor : 'white'}
-          />
-        </TouchableOpacity>
+        {viewOnceEnabled && (
+          <TouchableOpacity
+            accessibilityLabel={viewOnce ? 'View once on' : 'View once off'}
+            style={styles.viewOnce}
+            onPress={() => setViewOnce(v => !v)}>
+            <ViewOnceSVG
+              width={26}
+              height={26}
+              filled={viewOnce}
+              color={viewOnce ? primaryColor : 'white'}
+            />
+          </TouchableOpacity>
+        )}
       </View>
       <View
         style={[
