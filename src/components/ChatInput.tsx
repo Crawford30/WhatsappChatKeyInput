@@ -436,6 +436,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   selectionColor={primaryColor}
                   value={text}
                   onChangeText={setText}
+                  showSoftInputOnFocus={emojiKeyboard.nativeKeyboardEnabled}
                   onFocus={event => {
                     emojiKeyboard.handleInputFocus();
                     onFocus?.(event);

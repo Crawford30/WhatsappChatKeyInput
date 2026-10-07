@@ -2,6 +2,7 @@ import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   NativeSyntheticEvent,
+  Platform,
   TextInput,
   TextInputSelectionChangeEventData,
   useWindowDimensions,
@@ -83,6 +84,14 @@ export const useEmojiKeyboard = ({
   const activePanelRef = useRef<PanelKind | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(lastKeyboardHeight);
+  // Drives the TextInput's showSoftInputOnFocus. Flipping this back to true
+  // (after a panel set it false) is what makes the keyboard icon reliably
+  // bring the system keyboard back on iOS: RN's own setShowSoftInputOnFocus
+  // clears the input's custom inputView and, if it's still the first
+  // responder, calls reloadInputViews() itself — the same native call a
+  // plain .focus() on an already-focused input won't trigger. See
+  // RCTBaseTextInputView.mm's setShowSoftInputOnFocus:.
+  const [nativeKeyboardEnabled, setNativeKeyboardEnabled] = useState(true);
 
   const keyboardVisibleRef = useRef(false);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -234,9 +243,21 @@ export const useEmojiKeyboard = ({
   const openPanel = useCallback(
     (kind: PanelKind) => {
       showPanel(kind);
+      // Flipped back to true in openSystemKeyboard; the false->true change
+      // is what makes RN reliably swap the real keyboard back in (a no-op
+      // diff never reaches native).
+      setNativeKeyboardEnabled(false);
       // RN's Keyboard.dismiss() can miss on some Android devices (it needs RN
-      // to know the focused input); this hides the IME natively
-      KeyboardController.dismiss();
+      // to know the focused input); this hides the IME natively.
+      // keepFocus: true (iOS only) leaves the input as the native first
+      // responder, which is what makes the showSoftInputOnFocus flip in
+      // openSystemKeyboard self-sufficient there: RN's iOS prop handler
+      // reloads an already-first-responder input to the real keyboard
+      // synchronously, no race against a separate focus() call.
+      // showSoftInputOnFocus only gates Android's *next* focus-gain, not an
+      // already-focused view, so Android needs the real blur-then-refocus
+      // cycle instead — keepFocus there would leave nothing to re-trigger it.
+      KeyboardController.dismiss({ keepFocus: Platform.OS === 'ios' });
     },
     [showPanel]
   );
@@ -244,6 +265,12 @@ export const useEmojiKeyboard = ({
   // Call from the TextInput's onFocus (tapping the input while the panel is
   // open). The panel stays until the keyboard has slid over it.
   const handleInputFocus = useCallback(() => {
+    // A direct tap on the input re-focuses it natively while
+    // showSoftInputOnFocus may still be false from openPanel, which would
+    // otherwise leave it showing its empty, keyboard-hiding inputView.
+    // Flipping this back to true now, while it's already first responder,
+    // makes RN reload to the real keyboard immediately.
+    setNativeKeyboardEnabled(true);
     // From search, the keyboard is already up: just drop the search bar
     if (activePanelRef.current === 'search') {
       showPanel(null);
@@ -257,12 +284,14 @@ export const useEmojiKeyboard = ({
 
   const openSystemKeyboard = useCallback(() => {
     const { start, end } = selectionRef.current;
-    // dismiss() resigned the native first responder without RN's TextInput
-    // knowing, so plain inputRef.focus() can no-op on iOS (RN thinks it's
-    // still focused and skips the native call). setFocusTo('current')
-    // re-asserts native focus on the already-focused input, which reopens
-    // the system keyboard reliably on both platforms.
-    KeyboardController.setFocusTo('current');
+    // The input never actually lost native focus (openPanel's dismiss used
+    // keepFocus: true), so this flip alone is enough: RN's own
+    // setShowSoftInputOnFocus clears the custom inputView and, seeing the
+    // view is still first responder, reloads it to the real keyboard in
+    // the same native call — no race against a separate imperative command.
+    setNativeKeyboardEnabled(true);
+    // Defensive fallback for the rare case the input did lose focus (e.g.
+    // keepFocus's native guard silently no-op'd); harmless no-op otherwise.
     inputRef.current?.focus();
     inputRef.current?.setSelection(start, end);
   }, [inputRef]);
@@ -319,6 +348,7 @@ export const useEmojiKeyboard = ({
   return {
     activePanel,
     isEmojiMode,
+    nativeKeyboardEnabled,
     toggleEmojiKeyboard,
     toggleAttachMenu,
     openEmojiKeyboard,
