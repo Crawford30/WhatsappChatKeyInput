@@ -394,7 +394,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <View>
-      <View style={[themeStyles.flexRow, styles.bar, barStyle]}>
+      <View
+        style={[
+          themeStyles.flexRow,
+          styles.bar,
+          barStyle,
+          { marginBottom: emojiKeyboard.barBottomGap },
+        ]}>
         <View style={[themeStyles.flex1, themeStyles.whiteBg, styles.pill]}>
           {isRecording ? (
             <VoiceRecorder
@@ -561,16 +567,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       )}
 
       {/* Keyboard / panel space; panels hang from its top edge so they move
-          with the input bar. bottomAreaStyle's height already includes
-          keyboardGap on top of the panel's own height — this spacer is what
-          actually pushes the panel down to reveal that gap instead of it
-          silently extending the (invisible, already-clipped) space below
-          the panel instead. */}
+          with the input bar. The gap above the keyboard/panel is the bar's
+          own marginBottom (barBottomGap), not extra height here. */}
       <Reanimated.View
         style={[styles.bottomArea, emojiKeyboard.bottomAreaStyle]}>
-        {!!emojiKeyboard.activePanel && (
-          <View style={{ height: emojiKeyboard.keyboardGap }} />
-        )}
         {emojiKeyboard.activePanel === 'search' && (
           <EmojiSearch
             height={SEARCH_BAR_HEIGHT}

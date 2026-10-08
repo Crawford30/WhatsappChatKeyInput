@@ -149,21 +149,11 @@ export const useEmojiKeyboard = ({
     insetSpace.value = idleInset;
   }, [idleInset, insetSpace]);
 
-  const bottomAreaStyle = useAnimatedStyle(() => {
-    const keyboardSpace = -keyboard.height.value;
-    return {
-      height:
-        searchSpace.value +
-        Math.max(
-          // Gap applies whenever the keyboard or a panel is actually
-          // showing, not to the idle state (insetSpace already has its own
-          // sizing — adding the gap there would just inflate the idle gap)
-          keyboardSpace > 0 ? keyboardSpace + keyboardGap : 0,
-          panelSpace.value > 0 ? panelSpace.value + keyboardGap : 0,
-          insetSpace.value
-        ),
-    };
-  });
+  const bottomAreaStyle = useAnimatedStyle(() => ({
+    height:
+      searchSpace.value +
+      Math.max(-keyboard.height.value, panelSpace.value, insetSpace.value),
+  }));
 
   // Latest heights for event handlers that outlive a render
   const heightsRef = useRef({
@@ -368,7 +358,15 @@ export const useEmojiKeyboard = ({
     activePanel,
     isEmojiMode,
     nativeKeyboardEnabled,
-    keyboardGap, // so ChatInput's panel spacer matches the height math above exactly
+    keyboardVisible,
+    // Static (non-Reanimated) gap above the keyboard/panel, applied as a
+    // plain conditional margin on the bar rather than folded into
+    // bottomAreaStyle's animated height. Doing the arithmetic on
+    // -keyboard.height.value inside the worklet turned out unreliable on a
+    // real device (the extra space silently failed to show up there, even
+    // though it worked in the simulator) — a regular React-state-driven
+    // style sidesteps whatever that was entirely.
+    barBottomGap: keyboardVisible || activePanel ? keyboardGap : 0,
     toggleEmojiKeyboard,
     toggleAttachMenu,
     openEmojiKeyboard,
