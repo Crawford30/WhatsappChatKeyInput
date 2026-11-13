@@ -1,98 +1,73 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
-
-# Getting Started
-
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
-
-## Step 1: Start Metro
-
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
-
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
 # WhatsappChatKeyInput
+
+A WhatsApp-style chat input for React Native: switch between the keyboard,
+an emoji panel and a sticker panel without the input bar jumping, plus
+hold-to-record voice messages.
+
+React Native 0.87 (new architecture), Android Gradle Plugin 9.
+
+## Run it
+
+```sh
+yarn install
+yarn start            # Metro
+
+yarn android          # Android
+cd ios && bundle exec pod install && cd ..
+yarn ios              # iOS
+```
+
+`yarn test`, `yarn lint` and `npx tsc --noEmit` should all pass.
+
+## How the input works
+
+```
+ChatScreen
+├─ FlatList (inverted)        newest message at the bottom; dragging it closes the input
+└─ ChatInput
+   ├─ input bar               😊 / text / 🗒️   +   send or mic
+   └─ bottom spacer           height = max(keyboard, panel, bottom safe area)
+      └─ EmojiPicker | StickerPicker   (height = the keyboard's last height)
+```
+
+- **One spacer, no `KeyboardAvoidingView`.**
+  [`react-native-keyboard-controller`](https://kirillzyusko.github.io/react-native-keyboard-controller/)
+  reports the keyboard height every frame on both platforms. The spacer under
+  the input bar is the larger of that height, the panel height and the bottom
+  safe area.
+- **Panels are keyboard-sized.** The panel always uses the keyboard's last
+  measured height (300 pt until the keyboard has been opened once). So:
+  - keyboard → emoji: the panel takes the keyboard's height immediately, then
+    the keyboard is dismissed; the spacer never changes, the bar does not move;
+  - emoji → keyboard: the input is focused and the panel stays until the
+    keyboard is fully up, then collapses underneath it.
+- **Android back** closes an open panel before leaving the screen.
+- **Emoji are inserted at the cursor.** The panel's ⌫ deletes one emoji even
+  when it is several code points (👨‍👩‍👧, 👍🏽, 🇺🇬, 1️⃣) – see
+  `deleteBeforeCursor` in `src/Helpers/helper.ts`.
+- **Voice:** press and hold the mic. Slide left to cancel, release to send; a
+  quick tap shows a hint. The mic button owns the whole gesture (it stays
+  under the finger). Audio levels are simulated – add a native recorder
+  (e.g. `react-native-nitro-sound`) for real recordings.
+- **Stickers** are large emoji, so they work offline.
+
+## Files
+
+| File | What it does |
+|---|---|
+| `src/components/ChatInput.tsx` | input bar, keyboard/panel switching, hold-to-record |
+| `src/components/EmojiPicker.tsx` | category tabs, recents, ⌫ |
+| `src/components/StickerPicker.tsx` | sticker packs |
+| `src/components/VoiceRecorder.tsx` | recording bar (timer, waveform, slide hint) |
+| `src/screens/ChatScreen.tsx` | header, message bubbles |
+| `src/hooks/useInputHook.ts` | recording timer, recent items |
+| `src/data/*` | emoji categories, sticker packs |
+
+## Notes
+
+- `android/gradle.properties` has `edgeToEdgeEnabled=true` (RN 0.87 default);
+  keyboard-controller handles insets on Android.
+- The mic keeps its centre outside Android's edge back-gesture strip;
+  otherwise sliding left to cancel can be taken as the system back gesture.
+- `.yarnrc.yml` sets `nodeLinker: node-modules` (React Native does not
+  support Yarn Plug'n'Play).
