@@ -1,130 +1,115 @@
-import React, { useState, useCallback } from 'react';
+import React, {useCallback, useState} from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
   FlatList,
+  Pressable,
   StyleSheet,
-  Dimensions,
-  Image,
+  Text,
+  View,
+  useWindowDimensions,
 } from 'react-native';
-import { STICKER_PACKS } from '../data/stickerData';
-import type { Sticker } from '../types/inputTypes';
+import {STICKER_PACKS} from '../data/stickerData';
+import type {Sticker} from '../types/inputTypes';
 
-const { width } = Dimensions.get('window');
-const STICKER_SIZE = width / 4;
 const NUM_COLUMNS = 4;
+const TAB_BAR_HEIGHT = 48;
 
 interface StickerPickerProps {
+  height: number;
   onStickerSelect: (sticker: Sticker) => void;
 }
 
 export const StickerPicker: React.FC<StickerPickerProps> = ({
+  height,
   onStickerSelect,
 }) => {
-  const [selectedPack, setSelectedPack] = useState(STICKER_PACKS[0].id);
+  const {width} = useWindowDimensions();
+  const cellSize = Math.floor(width / NUM_COLUMNS);
+  const [packId, setPackId] = useState(STICKER_PACKS[0].id);
+  const pack = STICKER_PACKS.find(p => p.id === packId) ?? STICKER_PACKS[0];
 
-  const currentPack = STICKER_PACKS.find(pack => pack.id === selectedPack);
-
-  const handleStickerPress = useCallback(
-    (sticker: Sticker) => {
-      onStickerSelect(sticker);
-    },
-    [onStickerSelect],
-  );
-
-  const renderSticker = useCallback(
-    ({ item }: { item: Sticker }) => (
-      <TouchableOpacity
-        style={styles.stickerButton}
-        onPress={() => handleStickerPress(item)}
-        activeOpacity={0.6}
-      >
-        <Image
-          source={{ uri: item.image }}
-          style={styles.stickerImage}
-          resizeMode="contain"
-        />
-      </TouchableOpacity>
-    ),
-    [handleStickerPress],
-  );
-
-  const renderPackTab = useCallback(
-    (pack: (typeof STICKER_PACKS)[0]) => (
-      <TouchableOpacity
-        key={pack.id}
-        style={[
-          styles.packTab,
-          selectedPack === pack.id && styles.packTabActive,
+  const renderItem = useCallback(
+    ({item}: {item: Sticker}) => (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Send sticker ${item.emoji}`}
+        style={({pressed}) => [
+          styles.cell,
+          {width: cellSize, height: cellSize},
+          pressed && styles.cellPressed,
         ]}
-        onPress={() => setSelectedPack(pack.id)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.packIcon}>{pack.icon}</Text>
-      </TouchableOpacity>
+        onPress={() => onStickerSelect(item)}>
+        <Text style={[styles.sticker, {fontSize: cellSize * 0.55}]}>
+          {item.emoji}
+        </Text>
+      </Pressable>
     ),
-    [selectedPack],
+    [cellSize, onStickerSelect],
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {height}]}>
       <FlatList
-        data={currentPack?.stickers || []}
-        renderItem={renderSticker}
+        key={packId}
+        data={pack.stickers}
+        renderItem={renderItem}
         keyExtractor={item => item.id}
         numColumns={NUM_COLUMNS}
-        contentContainerStyle={styles.stickerGrid}
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={20}
-        windowSize={5}
-        initialNumToRender={16}
+        style={styles.grid}
+        keyboardShouldPersistTaps="always"
       />
-      <View style={styles.packBar}>{STICKER_PACKS.map(renderPackTab)}</View>
+      <View style={[styles.tabBar, {height: TAB_BAR_HEIGHT}]}>
+        {STICKER_PACKS.map(p => (
+          <Pressable
+            key={p.id}
+            accessibilityRole="tab"
+            accessibilityLabel={p.name}
+            accessibilityState={{selected: p.id === packId}}
+            style={[styles.tab, p.id === packId && styles.tabActive]}
+            onPress={() => setPackId(p.id)}>
+            <Text style={styles.tabIcon}>{p.icon}</Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    height: 350,
     backgroundColor: '#FFFFFF',
   },
-  stickerGrid: {
-    paddingHorizontal: 4,
-    paddingTop: 8,
+  grid: {
+    flex: 1,
   },
-  stickerButton: {
-    width: STICKER_SIZE,
-    height: STICKER_SIZE,
+  cell: {
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 8,
+    borderRadius: 12,
   },
-  stickerImage: {
-    width: STICKER_SIZE - 16,
-    height: STICKER_SIZE - 16,
+  cellPressed: {
+    backgroundColor: '#F0F2F5',
   },
-  packBar: {
+  sticker: {
+    textAlign: 'center',
+  },
+  tabBar: {
     flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: '#F5F5F5',
-    paddingVertical: 8,
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#D1D7DB',
     paddingHorizontal: 4,
   },
-  packTab: {
+  tab: {
     flex: 1,
-    height: 40,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 8,
   },
-  packTabActive: {
-    backgroundColor: '#E8E8E8',
+  tabActive: {
+    backgroundColor: '#E7F8EE',
   },
-  packIcon: {
-    fontSize: 24,
+  tabIcon: {
+    fontSize: 20,
   },
 });

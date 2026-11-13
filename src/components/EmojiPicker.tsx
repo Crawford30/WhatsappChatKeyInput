@@ -1,85 +1,125 @@
-import React, { useState, useCallback } from 'react';
+import React, {memo, useCallback, useMemo, useState} from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
   FlatList,
+  Pressable,
   StyleSheet,
-  Dimensions,
+  Text,
+  View,
+  useWindowDimensions,
 } from 'react-native';
-import { EMOJI_CATEGORIES, addRecentEmoji } from '../data/emojiData';
+import {EMOJI_CATEGORIES} from '../data/emojiData';
 
-const { width } = Dimensions.get('window');
-const EMOJI_SIZE = width / 8;
 const NUM_COLUMNS = 8;
+const TAB_BAR_HEIGHT = 48;
 
 interface EmojiPickerProps {
+  /** Total height of the panel (the keyboard's height). */
+  height: number;
+  /** Most recently used first. */
+  recents: string[];
   onEmojiSelect: (emoji: string) => void;
+  onBackspace: () => void;
 }
 
-export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
-  const [selectedCategory, setSelectedCategory] = useState(
-    EMOJI_CATEGORIES[0].id,
+const EmojiCell = memo(
+  ({
+    emoji,
+    size,
+    onPress,
+  }: {
+    emoji: string;
+    size: number;
+    onPress: (emoji: string) => void;
+  }) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={emoji}
+      style={({pressed}) => [
+        styles.cell,
+        {width: size, height: size},
+        pressed && styles.cellPressed,
+      ]}
+      onPress={() => onPress(emoji)}>
+      <Text style={styles.emoji}>{emoji}</Text>
+    </Pressable>
+  ),
+);
+
+export const EmojiPicker: React.FC<EmojiPickerProps> = ({
+  height,
+  recents,
+  onEmojiSelect,
+  onBackspace,
+}) => {
+  const {width} = useWindowDimensions();
+  const cellSize = Math.floor(width / NUM_COLUMNS);
+  const [categoryId, setCategoryId] = useState(
+    recents.length ? 'recent' : EMOJI_CATEGORIES[1].id,
   );
 
-  const currentCategory = EMOJI_CATEGORIES.find(
-    cat => cat.id === selectedCategory,
-  );
+  const emojis = useMemo(() => {
+    if (categoryId === 'recent') {
+      return recents;
+    }
+    return EMOJI_CATEGORIES.find(c => c.id === categoryId)?.emojis ?? [];
+  }, [categoryId, recents]);
 
-  const handleEmojiPress = useCallback(
-    (emoji: string) => {
-      addRecentEmoji(emoji);
-      onEmojiSelect(emoji);
-    },
-    [onEmojiSelect],
-  );
-
-  const renderEmoji = useCallback(
-    ({ item }: { item: string }) => (
-      <TouchableOpacity
-        style={styles.emojiButton}
-        onPress={() => handleEmojiPress(item)}
-        activeOpacity={0.6}
-      >
-        <Text style={styles.emoji}>{item}</Text>
-      </TouchableOpacity>
+  const renderItem = useCallback(
+    ({item}: {item: string}) => (
+      <EmojiCell emoji={item} size={cellSize} onPress={onEmojiSelect} />
     ),
-    [handleEmojiPress],
+    [cellSize, onEmojiSelect],
   );
 
-  const renderCategoryTab = useCallback(
-    (category: (typeof EMOJI_CATEGORIES)[0]) => (
-      <TouchableOpacity
-        key={category.id}
-        style={[
-          styles.categoryTab,
-          selectedCategory === category.id && styles.categoryTabActive,
-        ]}
-        onPress={() => setSelectedCategory(category.id)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.categoryIcon}>{category.icon}</Text>
-      </TouchableOpacity>
-    ),
-    [selectedCategory],
+  const getItemLayout = useCallback(
+    (_: unknown, index: number) => ({
+      length: cellSize,
+      offset: cellSize * Math.floor(index / NUM_COLUMNS),
+      index,
+    }),
+    [cellSize],
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {height}]}>
       <FlatList
-        data={currentCategory?.emojis || []}
-        renderItem={renderEmoji}
-        keyExtractor={(item, index) => `${selectedCategory}-${index}`}
+        key={categoryId}
+        data={emojis}
+        renderItem={renderItem}
+        keyExtractor={(item, index) => `${item}-${index}`}
         numColumns={NUM_COLUMNS}
-        contentContainerStyle={styles.emojiGrid}
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={50}
-        windowSize={10}
-        initialNumToRender={40}
+        getItemLayout={getItemLayout}
+        style={styles.grid}
+        initialNumToRender={NUM_COLUMNS * 6}
+        keyboardShouldPersistTaps="always"
+        ListEmptyComponent={
+          <Text style={styles.empty}>Emoji you use will show up here</Text>
+        }
       />
-      <View style={styles.categoryBar}>
-        {EMOJI_CATEGORIES.map(renderCategoryTab)}
+      <View style={[styles.tabBar, {height: TAB_BAR_HEIGHT}]}>
+        {EMOJI_CATEGORIES.map(category => (
+          <Pressable
+            key={category.id}
+            accessibilityRole="tab"
+            accessibilityLabel={category.name}
+            accessibilityState={{selected: categoryId === category.id}}
+            style={[
+              styles.tab,
+              categoryId === category.id && styles.tabActive,
+            ]}
+            onPress={() => setCategoryId(category.id)}>
+            <Text style={styles.tabIcon}>{category.icon}</Text>
+          </Pressable>
+        ))}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Delete"
+          style={styles.tab}
+          onPress={onBackspace}
+          onLongPress={onBackspace}
+          delayLongPress={300}>
+          <Text style={styles.backspace}>⌫</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -87,41 +127,49 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onEmojiSelect }) => {
 
 const styles = StyleSheet.create({
   container: {
-    height: 350,
     backgroundColor: '#FFFFFF',
   },
-  emojiGrid: {
-    paddingHorizontal: 4,
-    paddingTop: 8,
-  },
-  emojiButton: {
-    width: EMOJI_SIZE,
-    height: EMOJI_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emoji: {
-    fontSize: 28,
-  },
-  categoryBar: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: '#F5F5F5',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  categoryTab: {
+  grid: {
     flex: 1,
-    height: 40,
+  },
+  cell: {
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 8,
   },
-  categoryTabActive: {
-    backgroundColor: '#E8E8E8',
+  cellPressed: {
+    backgroundColor: '#F0F2F5',
   },
-  categoryIcon: {
-    fontSize: 24,
+  emoji: {
+    fontSize: 28,
+  },
+  empty: {
+    textAlign: 'center',
+    color: '#8696A0',
+    marginTop: 40,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#D1D7DB',
+    paddingHorizontal: 4,
+  },
+  tab: {
+    flex: 1,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabActive: {
+    backgroundColor: '#E7F8EE',
+  },
+  tabIcon: {
+    fontSize: 20,
+  },
+  backspace: {
+    fontSize: 22,
+    color: '#54656F',
   },
 });

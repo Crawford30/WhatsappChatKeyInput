@@ -1,152 +1,106 @@
-import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  PanResponder,
-  Dimensions,
-} from 'react-native';
-import type { VoiceRecording } from '../types/inputTypes';
-
-const { width } = Dimensions.get('window');
-const CANCEL_THRESHOLD = -120;
+import React, {useEffect, useRef} from 'react';
+import {Animated, StyleSheet, Text, View} from 'react-native';
+import {formatDuration} from '../Helpers/helper';
 
 interface VoiceRecorderProps {
-  recording: VoiceRecording;
-  onCancel: () => void;
-  onSend: () => void;
+  durationMs: number;
+  levels: number[];
+  /** How far the finger has slid left (≤ 0), from the mic button's gesture. */
+  slideX: Animated.Value;
 }
 
+/**
+ * Shown in place of the text field while the mic button is held. Display
+ * only: the press, slide-to-cancel and release are handled by the mic button,
+ * which stays under the finger for the whole gesture.
+ */
 export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
-  recording,
-  onCancel,
-  onSend,
+  durationMs,
+  levels,
+  slideX,
 }) => {
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dx < 0) {
-          slideAnim.setValue(gestureState.dx);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx < CANCEL_THRESHOLD) {
-          // Slide to cancel
-          Animated.timing(slideAnim, {
-            toValue: -width,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            onCancel();
-          });
-        } else {
-          // Spring back
-          Animated.spring(slideAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-    }),
-  ).current;
+  const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Pulse animation for recording indicator
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.2,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
+        Animated.timing(pulse, {toValue: 0.25, duration: 500, useNativeDriver: true}),
+        Animated.timing(pulse, {toValue: 1, duration: 500, useNativeDriver: true}),
       ]),
-    ).start();
-  }, [scaleAnim]);
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
 
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  // the hint follows the finger and fades out as it nears the cancel point
+  const hintOpacity = slideX.interpolate({
+    inputRange: [-120, 0],
+    outputRange: [0.2, 1],
+    extrapolate: 'clamp',
+  });
 
   return (
-    <Animated.View
-      style={[styles.container, { transform: [{ translateX: slideAnim }] }]}
-      {...panResponder.panHandlers}
-    >
-      <View style={styles.content}>
-        <Animated.View
-          style={[
-            styles.recordingIndicator,
-            { transform: [{ scale: scaleAnim }] },
-          ]}
-        />
-        <Text style={styles.duration}>
-          {formatDuration(recording.duration)}
-        </Text>
-        <View style={styles.waveformContainer}>
-          {recording.amplitude.map((amp, index) => (
-            <View
-              key={index}
-              style={[styles.waveformBar, { height: Math.max(4, amp * 30) }]}
-            />
-          ))}
-        </View>
-        <Text style={styles.slideText}>{'< Slide to cancel'}</Text>
+    <View style={styles.container} accessibilityLiveRegion="polite">
+      <Animated.View style={[styles.dot, {opacity: pulse}]} />
+      <Text style={styles.duration} accessibilityLabel="Recording time">
+        {formatDuration(durationMs)}
+      </Text>
+      <View style={styles.waveform}>
+        {levels.slice(-24).map((level, i) => (
+          <View key={i} style={[styles.bar, {height: 4 + level * 18}]} />
+        ))}
       </View>
-    </Animated.View>
+      <Animated.Text
+        style={[
+          styles.hint,
+          {opacity: hintOpacity, transform: [{translateX: slideX}]},
+        ]}>
+        ‹ Slide to cancel
+      </Animated.Text>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#F0F0F0',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  recordingIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#FF3B30',
-    marginRight: 12,
-  },
-  duration: {
-    fontSize: 14,
-    color: '#000',
-    fontWeight: '600',
-    marginRight: 12,
-  },
-  waveformContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    height: 30,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#F15C6D',
+    marginRight: 8,
+  },
+  duration: {
+    fontSize: 15,
+    color: '#111B21',
+    fontVariant: ['tabular-nums'],
+    marginRight: 10,
+  },
+  waveform: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 2,
+    height: 24,
+    marginRight: 10,
   },
-  waveformBar: {
-    width: 3,
-    backgroundColor: '#34C759',
-    borderRadius: 1.5,
+  bar: {
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: '#8696A0',
   },
-  slideText: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginLeft: 12,
+  hint: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 13,
+    color: '#667781',
   },
 });

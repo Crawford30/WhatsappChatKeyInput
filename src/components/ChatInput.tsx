@@ -1,353 +1,481 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import {
-  View,
+  Animated as RNAnimated,
+  BackHandler,
+  PanResponder,
+  Pressable,
+  StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Keyboard,
-  Platform,
-  KeyboardAvoidingView,
-  Animated,
+  View,
+  Vibration,
+  type TextInputInstance,
+  type TextInputSelectionChangeEvent,
 } from 'react-native';
-import { InputMode } from '../types/inputTypes';
-import { Sticker, Message } from '../types/inputTypes';
-import { EmojiPicker } from './EmojiPicker';
-import { StickerPicker } from './StickerPicker';
-import { VoiceRecorder } from './VoiceRecorder';
+import {
+  KeyboardController,
+  useKeyboardHandler,
+} from 'react-native-keyboard-controller';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {scheduleOnRN} from 'react-native-worklets';
+import {EMOJI_CATEGORIES} from '../data/emojiData';
+import {deleteBeforeCursor, generateId} from '../Helpers/helper';
+import {useRecentItems, useVoiceRecording} from '../hooks/useInputHook';
+import type {InputMode, Message, Sticker} from '../types/inputTypes';
+import {EmojiPicker} from './EmojiPicker';
+import {StickerPicker} from './StickerPicker';
+import {VoiceRecorder} from './VoiceRecorder';
+
+/** Panel height until the keyboard has been opened once and measured. */
+const DEFAULT_PANEL_HEIGHT = 300;
+const CANCEL_DISTANCE = -120;
+const MIN_VOICE_MS = 600;
+const PANEL_ANIMATION = {duration: 220};
+
+/** A message as composed here; id, sender and time are added on send. */
+type NewMessage = Message extends infer M
+  ? M extends Message
+    ? Omit<M, 'id' | 'fromMe' | 'timestamp'>
+    : never
+  : never;
+
+export interface ChatInputHandle {
+  /** Hides the keyboard or emoji/sticker panel (e.g. when the list is dragged). */
+  close: () => void;
+}
 
 interface ChatInputProps {
   onSendMessage: (message: Message) => void;
+  ref?: React.Ref<ChatInputHandle>;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
-  const [inputMode, setInputMode] = useState<InputMode>(InputMode.TEXT);
+/**
+ * WhatsApp-style input bar. The space below it is one animated spacer whose
+ * height is max(keyboard, emoji/sticker panel, bottom safe area). The panel
+ * always takes the keyboard's last measured height, so switching between the
+ * keyboard and a panel swaps what fills the space without moving the input.
+ */
+export const ChatInput: React.FC<ChatInputProps> = ({onSendMessage, ref}) => {
+  const insets = useSafeAreaInsets();
+  const inputRef = useRef<TextInputInstance>(null);
+
+  const [mode, setMode] = useState<InputMode>('idle');
+  const [panelSize, setPanelSize] = useState(
+    DEFAULT_PANEL_HEIGHT + insets.bottom,
+  );
   const [text, setText] = useState('');
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [voiceRecording, setVoiceRecording] = useState({
-    isRecording: false,
-    duration: 0,
-    amplitude: [] as number[],
-  });
+  const selection = useRef({start: 0, end: 0});
+  const [hint, setHint] = useState<string | null>(null);
 
-  const inputRef = useRef<TextInput>(null);
-  const panelHeightAnim = useRef(new Animated.Value(0)).current;
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const {recentItems: recentEmojis, addRecentItem: addRecentEmoji} =
+    useRecentItems<string>(EMOJI_CATEGORIES[0].emojis);
+  const voice = useVoiceRecording();
 
-  // Keyboard listeners
-  useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setKeyboardVisible(true)
-    );
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardVisible(false)
-    );
+  // ---- keyboard / panel geometry (UI thread) -----------------------------
+  const keyboardHeight = useSharedValue(0);
+  const panelHeight = useSharedValue(0);
+  /** Collapse the panel once the keyboard has fully replaced it. */
+  const collapsePanelOnKeyboard = useSharedValue(false);
 
-    return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
-    };
+  const onKeyboardSettled = useCallback((height: number) => {
+    if (height > 0) {
+      setPanelSize(prev => (Math.abs(prev - height) > 1 ? height : prev));
+      setMode('keyboard');
+    } else {
+      setMode(m => (m === 'keyboard' ? 'idle' : m));
+    }
   }, []);
 
-  // Voice recording timer
-  useEffect(() => {
-    if (voiceRecording.isRecording) {
-      recordingTimerRef.current = setInterval(() => {
-        setVoiceRecording(prev => ({
-          ...prev,
-          duration: prev.duration + 1,
-          amplitude: [...prev.amplitude.slice(-20), Math.random() * 0.8 + 0.2],
-        }));
-      }, 1000);
-    } else {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-    }
-
-    return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-    };
-  }, [voiceRecording.isRecording]);
-
-  const showPanel = useCallback(
-    (mode: InputMode) => {
-      Animated.spring(panelHeightAnim, {
-        toValue: 1,
-        useNativeDriver: false,
-        tension: 50,
-        friction: 8,
-      }).start();
-      setInputMode(mode);
+  useKeyboardHandler(
+    {
+      onMove: e => {
+        'worklet';
+        keyboardHeight.value = e.height;
+      },
+      onInteractive: e => {
+        'worklet';
+        keyboardHeight.value = e.height;
+      },
+      onEnd: e => {
+        'worklet';
+        keyboardHeight.value = e.height;
+        if (e.height > 0 && collapsePanelOnKeyboard.value) {
+          collapsePanelOnKeyboard.value = false;
+          panelHeight.value = 0;
+        }
+        scheduleOnRN(onKeyboardSettled, e.height);
+      },
     },
-    [panelHeightAnim]
+    [onKeyboardSettled],
   );
 
-  const hidePanel = useCallback(() => {
-    Animated.timing(panelHeightAnim, {
-      toValue: 0,
-      duration: 250,
-      useNativeDriver: false,
-    }).start(() => {
-      setInputMode(InputMode.TEXT);
+  const bottomInset = insets.bottom;
+  const spacerStyle = useAnimatedStyle(
+    () => ({
+      height: Math.max(keyboardHeight.value, panelHeight.value, bottomInset),
+    }),
+    [bottomInset],
+  );
+
+  // ---- panel switching ---------------------------------------------------
+  const openPanel = useCallback(
+    (next: 'emoji' | 'sticker') => {
+      collapsePanelOnKeyboard.value = false;
+      if (mode === 'keyboard') {
+        // the panel takes the keyboard's place instantly; nothing moves
+        panelHeight.value = panelSize;
+        KeyboardController.dismiss();
+      } else {
+        panelHeight.value = withTiming(panelSize, PANEL_ANIMATION);
+      }
+      setMode(next);
+    },
+    [mode, panelSize, panelHeight, collapsePanelOnKeyboard],
+  );
+
+  const showKeyboard = useCallback(() => {
+    // keep the panel until the keyboard covers it, then collapse it
+    collapsePanelOnKeyboard.value = panelHeight.value > 0;
+    setMode('keyboard');
+    inputRef.current?.focus();
+  }, [panelHeight, collapsePanelOnKeyboard]);
+
+  const close = useCallback(() => {
+    collapsePanelOnKeyboard.value = false;
+    KeyboardController.dismiss();
+    panelHeight.value = withTiming(0, PANEL_ANIMATION);
+    setMode('idle');
+  }, [panelHeight, collapsePanelOnKeyboard]);
+
+  useImperativeHandle(ref, () => ({close}), [close]);
+
+  const panelOpen = mode === 'emoji' || mode === 'sticker';
+
+  // Android back closes an open panel before leaving the screen
+  useEffect(() => {
+    if (!panelOpen) {
+      return;
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      close();
+      return true;
     });
-  }, [panelHeightAnim]);
+    return () => sub.remove();
+  }, [panelOpen, close]);
 
-  const handleEmojiPress = useCallback(() => {
-    if (inputMode === InputMode.EMOJI) {
-      // Close emoji panel
-      hidePanel();
-      inputRef.current?.focus();
-    } else {
-      // Open emoji panel
-      Keyboard.dismiss();
-      setTimeout(() => showPanel(InputMode.EMOJI), 100);
-    }
-  }, [inputMode, hidePanel, showPanel]);
+  const togglePanel = (target: 'emoji' | 'sticker') =>
+    mode === target ? showKeyboard() : openPanel(target);
 
-  const handleStickerPress = useCallback(() => {
-    if (inputMode === InputMode.STICKER) {
-      // Close sticker panel
-      hidePanel();
-      inputRef.current?.focus();
-    } else {
-      // Open sticker panel
-      Keyboard.dismiss();
-      setTimeout(() => showPanel(InputMode.STICKER), 100);
-    }
-  }, [inputMode, hidePanel, showPanel]);
+  // ---- text editing --------------------------------------------------------
+  const onSelectionChange = (e: TextInputSelectionChangeEvent) => {
+    selection.current = e.nativeEvent.selection;
+  };
 
-  const handleTextFocus = useCallback(() => {
-    if (inputMode !== InputMode.TEXT) {
-      hidePanel();
-    }
-  }, [inputMode, hidePanel]);
-
-  const handleEmojiSelect = useCallback((emoji: string) => {
-    setText(prev => prev + emoji);
-  }, []);
-
-  const handleStickerSelect = useCallback(
-    (sticker: Sticker) => {
-      onSendMessage({
-        id: Date.now().toString(),
-        text: `[Sticker: ${sticker.id}]`,
-        timestamp: new Date(),
-        type: 'image',
+  const insertEmoji = useCallback(
+    (emoji: string) => {
+      addRecentEmoji(emoji);
+      setText(prev => {
+        const start = Math.min(selection.current.start, prev.length);
+        const end = Math.min(selection.current.end, prev.length);
+        const cursor = start + emoji.length;
+        selection.current = {start: cursor, end: cursor};
+        return prev.slice(0, start) + emoji + prev.slice(end);
       });
-      hidePanel();
     },
-    [onSendMessage, hidePanel]
+    [addRecentEmoji],
   );
 
-  const handleSendPress = useCallback(() => {
-    if (text.trim()) {
+  const backspace = useCallback(() => {
+    setText(prev => {
+      const {start, end} = selection.current;
+      if (start !== end) {
+        selection.current = {start, end: start};
+        return prev.slice(0, start) + prev.slice(end);
+      }
+      const result = deleteBeforeCursor(prev, Math.min(end, prev.length));
+      selection.current = {start: result.cursor, end: result.cursor};
+      return result.text;
+    });
+  }, []);
+
+  const send = useCallback(
+    (message: NewMessage) =>
       onSendMessage({
-        id: Date.now().toString(),
-        text: text.trim(),
+        ...message,
+        id: generateId(),
+        fromMe: true,
         timestamp: new Date(),
-        type: 'text',
-      });
+      } as Message),
+    [onSendMessage],
+  );
+
+  const sendText = () => {
+    const body = text.trim();
+    if (body) {
+      send({type: 'text', text: body});
       setText('');
+      selection.current = {start: 0, end: 0};
     }
-  }, [text, onSendMessage]);
+  };
 
-  const handleVoiceLongPress = useCallback(() => {
-    setVoiceRecording({
-      isRecording: true,
-      duration: 0,
-      amplitude: [],
-    });
+  const sendSticker = useCallback(
+    (sticker: Sticker) => send({type: 'sticker', sticker: sticker.emoji}),
+    [send],
+  );
+
+  // ---- hold to record ----------------------------------------------------
+  const showHint = useCallback((message: string) => {
+    setHint(message);
+    setTimeout(() => setHint(null), 1800);
   }, []);
 
-  const handleVoiceRelease = useCallback(() => {
-    if (voiceRecording.isRecording && voiceRecording.duration > 0) {
-      // Send voice message
-      onSendMessage({
-        id: Date.now().toString(),
-        text: 'Voice message',
-        timestamp: new Date(),
-        type: 'voice',
-        duration: voiceRecording.duration,
-      });
-    }
-    setVoiceRecording({
-      isRecording: false,
-      duration: 0,
-      amplitude: [],
-    });
-  }, [voiceRecording, onSendMessage]);
+  const slideX = useRef(new RNAnimated.Value(0)).current;
+  const micScale = useRef(new RNAnimated.Value(1)).current;
+  const gesture = useRef({cancelled: false});
+  // the responder is created once; it reads the latest callbacks from here
+  const latest = useRef({voice, send, showHint});
+  latest.current = {voice, send, showHint};
 
-  const handleVoiceCancel = useCallback(() => {
-    setVoiceRecording({
-      isRecording: false,
-      duration: 0,
-      amplitude: [],
-    });
-  }, []);
+  const resetMic = () => {
+    RNAnimated.parallel([
+      RNAnimated.spring(slideX, {toValue: 0, useNativeDriver: true}),
+      RNAnimated.spring(micScale, {toValue: 1, useNativeDriver: true}),
+    ]).start();
+  };
 
-  const panelHeight = panelHeightAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 350],
-  });
+  const micResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        gesture.current.cancelled = false;
+        latest.current.voice.start();
+        Vibration.vibrate(15);
+        RNAnimated.spring(micScale, {
+          toValue: 1.4,
+          useNativeDriver: true,
+        }).start();
+      },
+      onPanResponderMove: (_, g) => {
+        if (gesture.current.cancelled) {
+          return;
+        }
+        slideX.setValue(Math.min(0, g.dx));
+        if (g.dx < CANCEL_DISTANCE) {
+          gesture.current.cancelled = true;
+          latest.current.voice.stop();
+          Vibration.vibrate(30);
+          resetMic();
+        }
+      },
+      onPanResponderRelease: () => {
+        resetMic();
+        if (gesture.current.cancelled) {
+          return;
+        }
+        const elapsed = latest.current.voice.stop();
+        if (elapsed < MIN_VOICE_MS) {
+          latest.current.showHint('Hold to record, release to send');
+        } else {
+          latest.current.send({type: 'voice', durationMs: elapsed});
+        }
+      },
+      onPanResponderTerminate: () => {
+        gesture.current.cancelled = true;
+        latest.current.voice.stop();
+        resetMic();
+      },
+    }),
+  ).current;
+
+  // ---- render --------------------------------------------------------------
+  const hasText = text.trim().length > 0;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-      <View style={styles.container}>
-        {/* Voice Recording Overlay */}
-        {voiceRecording.isRecording && (
+    <View style={styles.container}>
+      {hint && (
+        <View style={styles.hintBubble} pointerEvents="none">
+          <Text style={styles.hintText}>{hint}</Text>
+        </View>
+      )}
+
+      <View style={styles.bar}>
+        {voice.isRecording ? (
           <VoiceRecorder
-            recording={voiceRecording}
-            onCancel={handleVoiceCancel}
-            onSend={handleVoiceRelease}
+            durationMs={voice.durationMs}
+            levels={voice.levels}
+            slideX={slideX}
           />
-        )}
-
-        {/* Input Bar */}
-        {!voiceRecording.isRecording && (
-          <View style={styles.inputBar}>
-            {/* Emoji Button */}
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={handleEmojiPress}
-              activeOpacity={0.6}>
-              <Text style={styles.iconText}>
-                {inputMode === InputMode.EMOJI ? '⌨️' : '😊'}
+        ) : (
+          <View style={styles.field}>
+            <Pressable
+              style={styles.fieldButton}
+              accessibilityRole="button"
+              accessibilityLabel={mode === 'emoji' ? 'Keyboard' : 'Emoji'}
+              hitSlop={6}
+              onPress={() => togglePanel('emoji')}>
+              <Text style={styles.fieldIcon}>
+                {mode === 'emoji' ? '⌨️' : '😊'}
               </Text>
-            </TouchableOpacity>
-
-            {/* Text Input */}
-            <View style={styles.inputWrapper}>
-              <TextInput
-                ref={inputRef}
-                style={styles.textInput}
-                placeholder="Message"
-                placeholderTextColor="#999"
-                value={text}
-                onChangeText={setText}
-                onFocus={handleTextFocus}
-                multiline
-                maxLength={1000}
-              />
-
-              {/* Attachment Buttons */}
-              {text.length === 0 && (
-                <View style={styles.attachmentButtons}>
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={handleStickerPress}
-                    activeOpacity={0.6}>
-                    <Text style={styles.iconText}>
-                      {inputMode === InputMode.STICKER ? '💬' : '📄'}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    activeOpacity={0.6}>
-                    <Text style={styles.iconText}>📷</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-
-            {/* Send or Voice Button */}
-            {text.length > 0 ? (
-              <TouchableOpacity
-                style={[styles.iconButton, styles.sendButton]}
-                onPress={handleSendPress}
-                activeOpacity={0.6}>
-                <Text style={styles.sendIcon}>➤</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.iconButton}
-                onLongPress={handleVoiceLongPress}
-                onPressOut={handleVoiceRelease}
-                activeOpacity={0.6}
-                delayLongPress={100}>
-                <Text style={styles.iconText}>🎤</Text>
-              </TouchableOpacity>
+            </Pressable>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              value={text}
+              onChangeText={setText}
+              onSelectionChange={onSelectionChange}
+              onFocus={() => {
+                if (panelOpen) {
+                  showKeyboard();
+                }
+              }}
+              placeholder="Message"
+              placeholderTextColor="#8696A0"
+              multiline
+              maxLength={4096}
+            />
+            {!hasText && (
+              <Pressable
+                style={styles.fieldButton}
+                accessibilityRole="button"
+                accessibilityLabel={mode === 'sticker' ? 'Keyboard' : 'Stickers'}
+                hitSlop={6}
+                onPress={() => togglePanel('sticker')}>
+                <Text style={styles.fieldIcon}>
+                  {mode === 'sticker' ? '⌨️' : '🗒️'}
+                </Text>
+              </Pressable>
             )}
           </View>
         )}
 
-        {/* Emoji/Sticker Panel */}
-        {!keyboardVisible && (
-          <Animated.View style={[styles.panel, { height: panelHeight }]}>
-            {inputMode === InputMode.EMOJI && (
-              <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-            )}
-            {inputMode === InputMode.STICKER && (
-              <StickerPicker onStickerSelect={handleStickerSelect} />
-            )}
-          </Animated.View>
+        {hasText ? (
+          <Pressable
+            style={styles.roundButton}
+            accessibilityRole="button"
+            accessibilityLabel="Send"
+            onPress={sendText}>
+            <Text style={styles.sendIcon}>➤</Text>
+          </Pressable>
+        ) : (
+          <RNAnimated.View
+            {...micResponder.panHandlers}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel="Hold to record a voice message"
+            style={[styles.roundButton, {transform: [{scale: micScale}]}]}>
+            <Text style={styles.micIcon}>🎤</Text>
+          </RNAnimated.View>
         )}
       </View>
-    </KeyboardAvoidingView>
+
+      <Animated.View style={[styles.spacer, spacerStyle]}>
+        {/* the keyboard's height includes the home indicator / nav bar, so
+            keep the pickers' tab bars clear of it */}
+        {panelOpen && (
+          <View style={{height: panelSize, paddingBottom: insets.bottom}}>
+            {mode === 'emoji' ? (
+              <EmojiPicker
+                height={panelSize - insets.bottom}
+                recents={recentEmojis}
+                onEmojiSelect={insertEmoji}
+                onBackspace={backspace}
+              />
+            ) : (
+              <StickerPicker
+                height={panelSize - insets.bottom}
+                onStickerSelect={sendSticker}
+              />
+            )}
+          </View>
+        )}
+      </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F0F2F5',
   },
-  inputBar: {
+  bar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 6,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    gap: 6,
   },
-  inputWrapper: {
+  field: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    marginHorizontal: 8,
-    minHeight: 40,
-    maxHeight: 100,
+    minHeight: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 4,
   },
-  textInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: 10,
-    paddingRight: 8,
-    color: '#000',
-  },
-  attachmentButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: 8,
-  },
-  iconButton: {
+  fieldButton: {
     width: 40,
-    height: 40,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  iconText: {
-    fontSize: 24,
+  fieldIcon: {
+    fontSize: 22,
   },
-  sendButton: {
-    backgroundColor: '#25D366',
-    borderRadius: 20,
+  input: {
+    flex: 1,
+    maxHeight: 120,
+    paddingTop: 11,
+    paddingBottom: 11,
+    paddingHorizontal: 2,
+    fontSize: 16,
+    lineHeight: 21,
+    color: '#111B21',
+  },
+  roundButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#00A884',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sendIcon: {
-    fontSize: 20,
+    fontSize: 18,
     color: '#FFFFFF',
+    marginLeft: 3,
   },
-  panel: {
+  micIcon: {
+    fontSize: 20,
+  },
+  spacer: {
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
+  },
+  hintBubble: {
+    position: 'absolute',
+    right: 12,
+    bottom: '100%',
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#3B4A54',
+  },
+  hintText: {
+    color: '#FFFFFF',
+    fontSize: 13,
   },
 });

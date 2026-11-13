@@ -384,13 +384,3 @@ export const EMOJI_CATEGORIES: EmojiCategory[] = [
     ],
   },
 ];
-
-export const getRecentEmojis = (): string[] => {
-  // In a real app, this would load from AsyncStorage
-  return EMOJI_CATEGORIES[0].emojis;
-};
-
-export const addRecentEmoji = (emoji: string): void => {
-  // In a real app, this would save to AsyncStorage
-  console.log('Adding recent emoji:', emoji);
-};

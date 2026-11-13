@@ -1,18 +1,10 @@
-export enum InputMode {
-  TEXT = 'TEXT',
-  EMOJI = 'EMOJI',
-  STICKER = 'STICKER',
-  VOICE = 'VOICE',
-  CAMERA = 'CAMERA',
-}
+/** What occupies the area below the input bar. */
+export type InputMode = 'idle' | 'keyboard' | 'emoji' | 'sticker';
 
-export interface Message {
-  id: string;
-  text: string;
-  timestamp: Date;
-  type: 'text' | 'voice' | 'image';
-  duration?: number; // for voice messages
-}
+export type Message =
+  | {id: string; fromMe: boolean; timestamp: Date; type: 'text'; text: string}
+  | {id: string; fromMe: boolean; timestamp: Date; type: 'sticker'; sticker: string}
+  | {id: string; fromMe: boolean; timestamp: Date; type: 'voice'; durationMs: number};
 
 export interface EmojiCategory {
   id: string;
@@ -23,7 +15,8 @@ export interface EmojiCategory {
 
 export interface Sticker {
   id: string;
-  image: string;
+  /** Rendered large, like a sticker. Works offline, no image downloads. */
+  emoji: string;
   pack: string;
 }
 
@@ -32,11 +25,4 @@ export interface StickerPack {
   name: string;
   icon: string;
   stickers: Sticker[];
-}
-
-export interface VoiceRecording {
-  isRecording: boolean;
-  duration: number;
-  amplitude: number[];
-  uri?: string;
 }
