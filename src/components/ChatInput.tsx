@@ -121,12 +121,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({onSendMessage, ref}) => {
   );
 
   const bottomInset = insets.bottom;
-  const spacerStyle = useAnimatedStyle(
-    () => ({
-      height: Math.max(keyboardHeight.value, panelHeight.value, bottomInset),
-    }),
-    [bottomInset],
-  );
+  const spacerStyle = useAnimatedStyle(() => ({
+    height: Math.max(keyboardHeight.value, panelHeight.value, bottomInset),
+  }));
 
   // ---- panel switching ---------------------------------------------------
   const openPanel = useCallback(
@@ -412,7 +409,10 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 6,
+    paddingLeft: 6,
+    // keeps the mic's centre out of Android's edge back-gesture strip
+    // (~30dp): sliding left to cancel from inside it is taken as "back"
+    paddingRight: 14,
     paddingVertical: 6,
     gap: 6,
   },

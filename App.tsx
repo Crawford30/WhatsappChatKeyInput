@@ -6,10 +6,9 @@ import {ChatScreen} from './src/screens/ChatScreen';
 
 const App: React.FC = () => {
   return (
-    // KeyboardProvider reports keyboard height every frame on iOS and
-    // Android; preserveEdgeToEdge keeps Android's edge-to-edge layout
-    // (edgeToEdgeEnabled=true) instead of switching the window mode
-    <KeyboardProvider preserveEdgeToEdge>
+    // KeyboardProvider reports the keyboard height every frame on iOS and
+    // Android (it detects the app's edge-to-edge setting on its own)
+    <KeyboardProvider>
       <SafeAreaProvider>
         <StatusBar barStyle="light-content" />
         <ChatScreen />
